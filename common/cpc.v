@@ -56,6 +56,7 @@ module cpc (
 
   // Señales del GA
   wire en244_n, cpu_n, romen_n, ramrd_n, mwe_n, ras_n, cas_n;
+  wire[2:0] ram_bank;
 
   // Señales del chip AY-3-8912
   wire [7:0] ay_data_output;
@@ -186,6 +187,7 @@ module cpc (
 		.ras_n(ras_n), 
 		.cas_n(cas_n), 
 		.casad_n(), 
+		.ram_bank(ram_bank),
 		.mwe_n(mwe_n), 
     .hsync_pal(hsync_pal),
     .vsync_pal(vsync_pal),
@@ -282,6 +284,7 @@ module cpc (
     .ras_n(ras_n),
     .cas_n(cas_n),
     .mwe_n(mwe_n),
+    .ram_bank(ram_bank),
     .en244_n(en244_n),
     .data_from_cpu(cpu_dout),
     .data_to_cpu(memory_dout),

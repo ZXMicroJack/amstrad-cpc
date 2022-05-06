@@ -45,6 +45,7 @@ module ga40010 (
   output reg cas_n,
   output wire casad_n,
   output wire mwe_n,
+  output reg[2:0] ram_bank,
   // salida de video
   output wire sync_n,    // necesita adaptacion a 5V
   output wire hsync_pal, // OJO! Esta señal no existe en la GA real
@@ -97,7 +98,8 @@ module ga40010 (
   parameter 
     PENR = 2'b00,
     INKR = 2'b01,
-    RMR = 2'b10;      
+    RMR = 2'b10,
+    MMR = 2'b11;
 
   // Ventana de acceso del GA a los datos. Señal para ver en iSIM
   reg habilitacion_escritura;
@@ -115,6 +117,7 @@ module ga40010 (
       video_mode <= 2'b00;
       next_video_mode <= 2'b00;
       penr <= 5'b00000;
+      ram_bank <= 3'b000;
     end
     else begin
       if (habilitacion_escritura) begin
@@ -125,6 +128,7 @@ module ga40010 (
                 else
                   inkr[penr[3:0]] <= d[4:0];
           RMR: {upper_rom, lower_rom, next_video_mode} <= d[3:0];
+          MMR: ram_bank[2:0] <= d[2:0];
         endcase
       end
       if (hsync == 1'b1)  // se actualiza el modo de video en cada HSYNC

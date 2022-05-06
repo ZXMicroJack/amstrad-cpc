@@ -41,7 +41,8 @@ module memory_cpc464 (
   // Interface con la SRAM de 512KB
   output wire [20:0] sram_addr,
   inout wire [7:0] sram_data,
-  output wire sram_we_n
+  output wire sram_we_n,
+  input wire[2:0] ram_bank
   );
 
   // De momento, este manejador va a ser la cosa más simple del mundo, ya que sólo implementaré la página base
@@ -106,11 +107,54 @@ module memory_cpc464 (
       memory_oe_n = 1'b0;
     end
   end
+
+// -- cpcWiki
+// -- http://www.cpcwiki.eu/index.php/Gate_Array
+// -- -Address-     0      1      2      3      4      5      6      7
+// -- 0000-3FFF   RAM_0  RAM_0  RAM_4  RAM_0  RAM_0  RAM_0  RAM_0  RAM_0
+// -- 4000-7FFF   RAM_1  RAM_1  RAM_5  RAM_3  RAM_4  RAM_5  RAM_6  RAM_7
+// -- 8000-BFFF   RAM_2  RAM_2  RAM_6  RAM_2  RAM_2  RAM_2  RAM_2  RAM_2
+// -- C000-FFFF   RAM_3  RAM_7  RAM_7  RAM_7  RAM_3  RAM_3  RAM_3  RAM_3
+// --http://www.grimware.org/doku.php/documentations/devices/gatearray
   
+  // 128 paging
+  // TODO clean up
+  reg[3:0] ram_page;
+  always @* begin
+    casez ({cpu_addr[15:14], ram_bank[2:0]})
+      5'b??000: ram_page = {2'b00, cpu_addr[15:14]}; // ram_bank 0
+      5'b??010: ram_page = {2'b01, cpu_addr[15:14]}; // ram_bank 2
+      5'b0?001: ram_page = {2'b00, cpu_addr[15:14]}; // ram_bank 1
+      5'b11001: ram_page = 4'b0111; // ram_bank 1
+
+      5'b00011: ram_page = 4'b0000; // ram_bank 3-0
+      5'b01011: ram_page = 4'b0011; // ram_bank 3-1
+      5'b10011: ram_page = 4'b0010; // ram_bank 3-2
+      5'b11011: ram_page = 4'b0111; // ram_bank 3-3
+
+      5'b00100: ram_page = 4'b0000; // ram_bank 4-0
+      5'b01100: ram_page = 4'b0100; // ram_bank 4-1
+      5'b1?100: ram_page = {3'b001, cpu_addr[14]}; // ram_bank 4-2/3
+
+      5'b00101: ram_page = 4'b0000; // ram_bank 5-0
+      5'b01101: ram_page = 4'b0101; // ram_bank 5-1
+      5'b1?101: ram_page = {3'b001, cpu_addr[14]}; // ram_bank 5-2/3
+
+      5'b00110: ram_page = 4'b0000; // ram_bank 6-0
+      5'b01110: ram_page = 4'b0110; // ram_bank 6-1
+      5'b1?110: ram_page = {3'b001, cpu_addr[14]}; // ram_bank 6-2/3
+
+      5'b00111: ram_page = 4'b0000; // ram_bank 7-0
+      5'b01111: ram_page = 4'b0111; // ram_bank 7-1
+      5'b1?111: ram_page = {3'b001, cpu_addr[14]}; // ram_bank 7-2/3
+    endcase
+  end
+
   // Aquí se decide qué cosa ve la RAM, si una dirección de CPU o de la Gate Array
   always @* begin
     if (cpu_n == 1'b0)
-      dram_addr = {5'b00000, cpu_addr};
+//       dram_addr = {5'b00000, cpu_addr};
+      dram_addr = {3'b000, ram_page[3:0], cpu_addr[13:0]};
     else
       dram_addr = {5'b00000, vram_addr};
   end
@@ -132,10 +176,18 @@ module rom ( // ROM de 32KB, conteniendo la lower ROM y la upper ROM 0
 
   reg [7:0] mem[0:32767];
   initial begin
-    $readmemh ("os464.hex", mem, 16'h0000, 16'h3FFF);
-    $readmemh ("basic1-0.hex", mem, 16'h4000, 16'h7FFF);
+//     $readmemh ("os464.hex", mem, 16'h0000, 16'h3FFF);
+//     $readmemh ("basic1-0.hex", mem, 16'h4000, 16'h7FFF);
     //$readmemh ("wiz.hex", mem, 0);
-  end
+
+// CPC4128
+//     $readmemh ("os6128.hex", mem, 16'h0000, 16'h3FFF);
+//     $readmemh ("basic1-1.hex", mem, 16'h4000, 16'h7FFF);
+
+//  Diagnostics
+    $readmemh ("AmstradDiagLower.rom.hex",  mem, 16'h0000, 16'h3FFF);
+    $readmemh ("AmstradDiagUpper.rom.hex", mem, 16'h4000, 16'h7FFF);
+end
   
   always @(posedge clk)
     dout <= mem[a];
@@ -162,6 +214,8 @@ module ram (
   assign sram_addr = (reset_n == 1'b0)? 21'hZZZZZZ : addr;
   
   reg [20:0] addr;
+  
+
   always @(posedge clk) begin
     if (ras_n == 1'b0)
       addr <= a;
