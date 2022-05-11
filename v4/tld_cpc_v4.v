@@ -51,6 +51,14 @@ module tld_cpc (
   assign stdn = 1'b0;  // fijar norma PAL
   assign stdnb = 1'b1; // y conectamos reloj PAL
 
+  // ctrl-module signals
+  wire host_divert_keyboard;
+  wire[7:0] disk_data_in;
+  wire[7:0] disk_data_out;
+  wire[31:0] disk_sr;
+  wire[31:0] disk_cr;
+  wire disk_data_clkout, disk_data_clkin;
+ 
   wire red, red_oe;
   wire green, green_oe;
   wire blue, blue_oe;
@@ -61,11 +69,12 @@ module tld_cpc (
   wire [2:0] bi = (blue_oe)? {blue,blue,blue} : 3'd4;
 
   // Reloj principal  
-  wire ck16, ck32;
+  wire ck16, ck32, ck50;
   relojes_cpc master_clocks (
     .CLK_IN1(clk50mhz),
     .CLK_OUT1(ck32),
-    .CLK_OUT2(ck16)
+    .CLK_OUT2(ck16),
+    .CLK_OUT3(ck50)
   );
 
   // Power on reset y configuración inicial
@@ -96,8 +105,8 @@ module tld_cpc (
     .ear(ear),
     .audio_out_left(audio_out_left),
     .audio_out_right(audio_out_right),
-    .clkps2(clkps2),
-    .dataps2(dataps2),
+    .clkps2(host_divert_keyboard ? 1'b1 : clkps2),
+    .dataps2(host_divert_keyboard ? 1'b1 : dataps2),
     .joyup(joyup),
     .joydown(joydown),
     .joyleft(joyleft),
@@ -106,7 +115,18 @@ module tld_cpc (
     .joyfire2(joyfire2),
     .sram_addr(sram_addr),
     .sram_data(sram_data),
-    .sram_we_n(sram_we_n)
+    .sram_we_n(sram_we_n),
+    
+     // disk interface
+    .disk_data_in(disk_data_out),
+    .disk_data_out(disk_data_in),
+    .disk_data_clkin(disk_data_clkout),
+    .disk_data_clkout(disk_data_clkin),
+
+      // disk interface
+    .disk_sr(disk_sr),
+    .disk_cr(disk_cr),
+    .disk_wp(dswitch[7:6])
   );
 
   wire [7:0] riosd;
@@ -131,7 +151,7 @@ module tld_cpc (
 		.vsync(vsync)
    );	 
 
-    wire osd_window;
+  wire osd_window;
   wire osd_pixel;
   
 //   assign led = sd_cs_n ? 1'b0 : 1'b1;
@@ -139,20 +159,15 @@ module tld_cpc (
 //   always @(posedge clk390k625)
 //     led <= sd_cs_n ? 1'b0 : 1'b1;
 
-  wire[7:0] disk_data_in0;
-  wire[7:0] disk_data_out0;
-  wire[31:0] disk_sr;
-  wire[31:0] disk_cr;
-  wire disk_data_clkout, disk_data_clkin;
   wire[15:0] dswitch;
-  wire host_divert_keyboard;
   wire host_divert_sdcard;
 
+  
   CtrlModule MyCtrlModule (
 //     .clk(clk6),
 //     .clk26(clk48),
     .clk(ck16),
-    .clk26(ck32),
+    .clk26(ck50),
     .reset_n(1'b1),
 
     //-- Video signals for OSD
@@ -184,14 +199,15 @@ module tld_cpc (
 //     .clk390k625(clk390k625),
 
      // disk interface
-    .disk_data_in(disk_data_out0),
-    .disk_data_out(disk_data_in0),
+    .disk_data_in(disk_data_out),
+    .disk_data_out(disk_data_in),
     .disk_data_clkin(disk_data_clkout),
     .disk_data_clkout(disk_data_clkin),
 
       // disk interface
     .disk_sr(disk_sr),
     .disk_cr(disk_cr)
+	// from/to ctrl-module
 
 //       .tape_data_out(tape_data),
 //       .tape_dclk_out(tape_dclk),
@@ -216,7 +232,7 @@ module tld_cpc (
    // OSD Overlay
    OSD_Overlay overlay (
 //      .clk(clk48),
-     .clk(ck32),
+     .clk(ck50),
      .red_in(vga_red_i),
      .green_in(vga_green_i),
      .blue_in(vga_blue_i),

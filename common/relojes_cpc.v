@@ -72,16 +72,16 @@ module relojes_cpc
   input wire        CLK_IN1,
   // Clock out ports
   output wire       CLK_OUT1,
-  output wire       CLK_OUT2
+  output wire       CLK_OUT2,
+  output wire       CLK_OUT3
  );
 
-  wire clkin1,clkout0,clkout1;
+  wire clkin1,clkout0,clkout1,clkout2;
   // Input buffering
   //------------------------------------
   IBUFG clkin1_buf
    (.O (clkin1),
     .I (CLK_IN1));
-
 
   // Clocking primitive
   //------------------------------------
@@ -92,7 +92,7 @@ module relojes_cpc
   wire        drdy_unused;
   wire        locked_unused;
   wire        clkfbout;
-  wire        clkout2_unused;
+//   wire        clkout2_unused;
   wire        clkout3_unused;
   wire        clkout4_unused;
   wire        clkout5_unused;
@@ -110,6 +110,9 @@ module relojes_cpc
     .CLKOUT1_DIVIDE         (50),
     .CLKOUT1_PHASE          (0.000),
     .CLKOUT1_DUTY_CYCLE     (0.500),
+    .CLKOUT2_DIVIDE         (16),
+    .CLKOUT2_PHASE          (0.000),
+    .CLKOUT2_DUTY_CYCLE     (0.500),
     .CLKIN_PERIOD           (20.0),
     .REF_JITTER             (0.010))
   pll_base_inst
@@ -117,7 +120,7 @@ module relojes_cpc
    (.CLKFBOUT              (clkfbout),
     .CLKOUT0               (clkout0),
     .CLKOUT1               (clkout1),
-    .CLKOUT2               (clkout2_unused),
+    .CLKOUT2               (clkout2),
     .CLKOUT3               (clkout3_unused),
     .CLKOUT4               (clkout4_unused),
     .CLKOUT5               (clkout5_unused),
@@ -140,6 +143,9 @@ module relojes_cpc
    (.O   (CLK_OUT2),
     .I   (clkout1));
 
+  BUFG clkout3_buf
+   (.O   (CLK_OUT3),
+    .I   (clkout2));
 
 
 endmodule

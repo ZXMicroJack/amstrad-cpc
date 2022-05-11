@@ -44,7 +44,15 @@ module cpc (
   // Interface con la SRAM externa
   output tri [20:0] sram_addr,
   inout wire [7:0] sram_data,
-  output tri sram_we_n
+  output tri sram_we_n,
+	input wire[7:0] disk_data_in,
+	output wire[7:0] disk_data_out,
+	output wire[31:0] disk_sr,
+	input wire[31:0] disk_cr,
+	input wire disk_data_clkout,
+	input wire disk_data_clkin,
+	input wire[1:0] disk_wp
+
   );
 
   // Señales del CRTC
@@ -78,6 +86,10 @@ module cpc (
   wire [7:0] port_b_oe_n;
   wire [7:0] port_c_oe_n;
   wire [7:0] columns;
+  
+  // Señales del FDC
+  wire nec765a_oe_n;
+  wire[7:0] fdc_dout;
 
   // esta señal es el resultado de procesar VSYNC desde el CRTC + un posible forzado del bit 0 del puerto B.
   wire vsync_processed = (port_b_oe_n[0] == 1'b0)? port_b_output[0] : vsync;
@@ -138,6 +150,7 @@ module cpc (
       crtc_oe_n  : cpu_din = crtc_dout;
       ppi_oe_n   : cpu_din = ppi_dout;
       memory_oe_n: cpu_din = memory_dout;
+      nec765a_oe_n: cpu_din = fdc_dout;
       default    : cpu_din = 8'hFF;
     endcase
   end
@@ -331,6 +344,27 @@ module cpc (
     .ay_chc(ay_chc),
     .audio_out_left(audio_out_left),
     .audio_out_right(audio_out_right)
+  );
+  
+  wire nec765a_oe = !a[10] && !a[7] && a[8] && !iorq_n;
+  assign nec765a_oe_n = !nec765a_oe;
+  nec765 fdc (
+    .clk(ck16),
+    .rst_n(reset_n),
+    .dout(fdc_dout),
+    .din(cpu_dout),
+    .ce(nec765a_oe),
+    .a0(a[0]),
+    .motorctl(!a[10] && !a[7] && !a[8] && !iorq_n),
+    .disk_data_in(disk_data_in),
+    .disk_data_out(disk_data_out),
+    .disk_sr(disk_sr),
+    .disk_cr(disk_cr),
+    .disk_data_clkout(disk_data_clkout),
+    .disk_data_clkin(disk_data_clkin),
+    .disk_wp(disk_wp),
+    .rd_n(rd_n),
+    .wr_n(wr_n)
   );
   
 

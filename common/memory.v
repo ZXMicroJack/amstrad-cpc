@@ -181,12 +181,12 @@ module rom ( // ROM de 32KB, conteniendo la lower ROM y la upper ROM 0
     //$readmemh ("wiz.hex", mem, 0);
 
 // CPC4128
-    $readmemh ("os6128.hex", mem, 16'h0000, 16'h3FFF);
-    $readmemh ("basic1-1.hex", mem, 16'h4000, 16'h7FFF);
+//     $readmemh ("os6128.hex", mem, 16'h0000, 16'h3FFF);
+//     $readmemh ("basic1-1.hex", mem, 16'h4000, 16'h7FFF);
 
 //  Diagnostics
-//     $readmemh ("AmstradDiagLower.rom.hex",  mem, 16'h0000, 16'h3FFF);
-//     $readmemh ("AmstradDiagUpper.rom.hex", mem, 16'h4000, 16'h7FFF);
+    $readmemh ("AmstradDiagLower.rom.hex",  mem, 16'h0000, 16'h3FFF);
+    $readmemh ("AmstradDiagUpper.rom.hex", mem, 16'h4000, 16'h7FFF);
 end
   
   always @(posedge clk)
