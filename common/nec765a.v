@@ -85,10 +85,10 @@ reg[7:0] params[0:10];
 reg[2:0] params_len = 0;
 reg[2:0] params_pos = 0;
 
-wire rfm = status == STATUS_IDLE || 
+wire rfm = status == STATUS_IDLE || status == STATUS_EXEC ||
   (status == STATUS_RX && results_len != results_pos)
   || (status == STATUS_CMD && params_len != params_pos);
-wire dio = status == STATUS_RX;
+wire dio = status == STATUS_RX || status == STATUS_EXEC;
 wire exm = status == STATUS_EXEC;
 wire busy = status != STATUS_IDLE;
 wire fdcbusy0 = status != STATUS_IDLE && !fdselect;
@@ -119,17 +119,30 @@ reg cm = 1'b0;
 reg crc_error = 1'b0;
 reg head = 1'b0;
 
+// TODO fake data
+reg[8:0] datalen = 0;
+
 always @(posedge clk) begin
   prev_rd_n <= rd_n;
   prev_wr_n <= wr_n;
 
   if (prev_rd_n && !rd_n && ce) begin
     if (!a0) dout[7:0] <= {rfm, dio, exm, busy, 2'b00, fdcbusy1, fdcbusy0};
-    else if (status == STATUS_RX) begin
+    else if (status == STATUS_EXEC) begin
+      if (datalen == 511) status <= STATUS_RX;
+      dout <= 8'he5;
+      datalen <= datalen + 1;
+    end else if (status == STATUS_RX) begin
       dout[7:0] <= results_pos != results_len ? results[results_pos] : 8'hff;
       if ((results_pos + 1) != results_len)
         results_pos <= results_pos + 1;
-      else status <= STATUS_IDLE;
+      else begin
+        status <= STATUS_IDLE;
+        results_len <= 0;
+        params_len <= 0;
+        results_pos <= 0;
+        params_pos <= 0;
+      end
     end else dout[7:0] <= 8'hff;
   end else begin if (prev_wr_n && !wr_n && ce && a0) begin
     if (status == STATUS_IDLE) begin // receiving command
@@ -168,10 +181,22 @@ always @(posedge clk) begin
         results_pos <= 0;
         status <= STATUS_RX;
         if (ins[4:0] == SENSE_DRIVE_STATUS) begin
-          results_len <= 1;          
-          params[0] <= {fault_fdd, disk_wp[0], rdy_fdd, trk0_fdd, side_fdd, sideselect_fdd, params[0][1:0]};
+          results_len <= 1;
+          results[0] <= {fault_fdd, disk_wp[0], rdy_fdd, trk0_fdd, side_fdd, sideselect_fdd, params[0][1:0]};
         end else if (ins[4:0] == SEEK || ins[4:0] == SPECIFY || ins[4:0] == RECALIBRATE)
           status <= STATUS_IDLE;
+        end else if (ins[4:0] == READ_DATA) begin
+          datalen <= 0;
+          results_len <= 7;
+          results[0] <= {2'b00,1'b1, 1'b0, not_ready, params[0][2:0]};
+          results[1] <= {bad_cylinder, 0, data_error, 1'b0, 1'b0, no_sector, disk_wp[params[0][0]], no_addr_mark};
+          results[2] <= {0, cm, crc_error, wrong_cylinder, scan_equal_hit, scan_not_found, bad_cylinder, no_addr_mark};
+          results[3] <= cylinder;
+          results[4] <= head;
+          results[5] <= sector_id;
+          results[6] <= sector_size;
+          status <= STATUS_EXEC;
+          
         end else begin
           results_len <= 7;
           // {ic[1:0],seek_end, no_track0_equipment_fail, not_ready, hd_at_int, us[1:0]};
