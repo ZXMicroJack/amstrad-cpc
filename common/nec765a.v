@@ -82,8 +82,8 @@ reg[2:0] results_len = 0;
 reg[2:0] results_pos = 0;
 
 reg[7:0] params[0:10];
-reg[2:0] params_len = 0;
-reg[2:0] params_pos = 0;
+reg[3:0] params_len = 0;
+reg[3:0] params_pos = 0;
 
 wire rfm = status == STATUS_IDLE || status == STATUS_EXEC ||
   (status == STATUS_RX && results_len != results_pos)
@@ -93,6 +93,7 @@ wire exm = status == STATUS_EXEC;
 wire busy = status != STATUS_IDLE;
 wire fdcbusy0 = status != STATUS_IDLE && !fdselect;
 wire fdcbusy1 = status != STATUS_IDLE && fdselect;
+// {rfm, dio, exm, busy, 2'b00, fdcbusy1, fdcbusy0};
 
 reg[7:0] ins;
 
@@ -162,7 +163,7 @@ always @(posedge clk) begin
         SENSE_INT_STATUS: begin
           params_len <= 0;
           results_len <= 2;
-          results[0] <= sto;
+          results[0] <= {2'b00,1'b1, 1'b0, not_ready, params[0][2:0]};
           results[1] <= pcn;
           status <= STATUS_RX;
         end
