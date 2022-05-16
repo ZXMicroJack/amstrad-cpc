@@ -45,7 +45,8 @@ module tld_cpc (
   output wire sd_cs_n,
   output wire sd_clk,
   output wire sd_mosi,
-  input wire sd_miso
+  input wire sd_miso,
+  output wire led
   );
 
   assign stdn = 1'b0;  // fijar norma PAL
@@ -89,6 +90,28 @@ module tld_cpc (
     .vga_on(vga_on),
     .scanlines_on(scanlines_on)
   );
+
+  
+  
+// assign sram2_addr[18:0] = rom_initialised ? {1'b0, ram_page[4:0], addr[12:0]} : romwrite_addr[18:0];
+// assign sram2_din[7:0] = rom_initialised ? cpu_dout[7:0] : romwrite_data[7:0];
+//   
+// 	bootloader bootloader_inst(
+// 		.clk(sys_clk_i),
+// 		.host_bootdata(host_bootdata),
+// 		.host_bootdata_ack(host_bootdata_ack),
+// 		.host_bootdata_req(host_bootdata_req),
+// 		.host_reset(host_reset),
+// 		.romwrite_data(romwrite_data),
+// 		.romwrite_wr(romwrite_wr),
+// 		.romwrite_addr(romwrite_addr),
+// 		.rom_initialised(rom_initialised)
+// 	);
+
+  wire [31:0] host_bootdata;
+  wire host_bootdata_ack;
+  wire host_bootdata_req;
+  wire host_rom_initialised;
   
   cpc la_maquina (
     .ck16(ck16),
@@ -126,8 +149,15 @@ module tld_cpc (
       // disk interface
     .disk_sr(disk_sr),
     .disk_cr(disk_cr),
-    .disk_wp(dswitch[7:6])
+    .disk_wp(dswitch[7:6]),
+    
+    // rom loading
+		.host_bootdata(host_bootdata),
+		.host_bootdata_ack(host_bootdata_ack),
+		.host_bootdata_req(host_bootdata_req),
+		.host_rom_initialised(host_rom_initialised)
   );
+  assign led = host_rom_initialised;
 
   wire [7:0] riosd;
   wire [7:0] giosd;
@@ -206,7 +236,14 @@ module tld_cpc (
 
       // disk interface
     .disk_sr(disk_sr),
-    .disk_cr(disk_cr)
+    .disk_cr(disk_cr),
+
+    // rom loading
+		.host_bootdata(host_bootdata),
+		.host_bootdata_ack(host_bootdata_ack),
+		.host_bootdata_req(host_bootdata_req),
+		.host_rom_initialised(host_rom_initialised)
+    
 	// from/to ctrl-module
 
 //       .tape_data_out(tape_data),

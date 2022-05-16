@@ -42,8 +42,19 @@ module memory_cpc464 (
   output wire [20:0] sram_addr,
   inout wire [7:0] sram_data,
   output wire sram_we_n,
-  input wire[2:0] ram_bank
+  // Boot data from control-module
+  input wire[2:0] ram_bank,
+	input wire[31:0] host_bootdata,
+  input wire host_bootdata_req,
+  output wire host_bootdata_ack,
+  output wire host_rom_initialised,
+  input wire pown_reset_n
   );
+  
+  // These are the connections for the boot rom loader
+  wire[7:0] romwrite_data;
+  wire romwrite_wr;
+  wire[18:0] romwrite_addr;
 
   // De momento, este manejador va a ser la cosa más simple del mundo, ya que sólo implementaré la página base
   // o sea, la memoria de un CPC 464. Las dos ROMs estarán en BRAM en la FPGA
@@ -65,6 +76,15 @@ module memory_cpc464 (
   
   wire [7:0] data_from_rom, data_from_ram;
   reg [20:0] dram_addr;
+  reg[7:0] rom_bank = 8'h00;
+  
+  // implement basic ROM bank switching
+//   always @(posedge clk) begin
+//     if (!reset_n)
+//       rom_bank[7:0] <= 8'h00;
+//     else if (cpu_addr[15:8] == 8'hdf && !iorq_n && !wr_n)
+//       rom_bank[7:0] <= cpu_addr[7:0] + 1;
+//   end
   
   // Instanciamos la ROM, que de momento estará en BRAM
   rom romcpc (
@@ -84,7 +104,12 @@ module memory_cpc464 (
     .dout(data_from_ram),
     .sram_addr(sram_addr),
     .sram_data(sram_data),
-    .sram_we_n(sram_we_n)
+    .sram_we_n(sram_we_n),
+    // boot roms
+    .romwrite_data(romwrite_data),
+    .romwrite_wr(romwrite_wr),
+    .romwrite_addr(romwrite_addr),
+    .rom_initialised(host_rom_initialised)
   );
 
   // Latch LS373 (IC114)
@@ -98,7 +123,7 @@ module memory_cpc464 (
   always @* begin
     data_to_cpu = 8'hFF;
     memory_oe_n = 1'b1;
-    if (romen_n == 1'b0) begin
+    if (romen_n == 1'b0) begin //  && (cpu_addr[15:14] == 2'b00 || (cpu_addr[15:14] == 2'b11 && rom_bank[7:0] == 8'h00))) begin
       data_to_cpu = data_from_rom;
       memory_oe_n = 1'b0;
     end
@@ -153,8 +178,11 @@ module memory_cpc464 (
   // Aquí se decide qué cosa ve la RAM, si una dirección de CPU o de la Gate Array
   always @* begin
     if (cpu_n == 1'b0)
-//       dram_addr = {5'b00000, cpu_addr};
-      dram_addr = {3'b000, ram_page[3:0], cpu_addr[13:0]};
+      dram_addr = 
+//         !host_rom_initialised ? {2'b00, romwrite_addr} :
+        {3'b000, ram_page[3:0], cpu_addr[13:0]};
+//         romen_n ? {3'b000, ram_page[3:0], cpu_addr[13:0]} :
+//         {3'b001, rom_bank[3:0], cpu_addr[13:0]};
     else
       dram_addr = {5'b00000, vram_addr};
   end
@@ -166,6 +194,20 @@ module memory_cpc464 (
     else
       data_to_ga = data_from_cpu;  // rutamos la salida de datos de la CPU a la GA cuando se quiere acceder a ella
   end
+
+  // Receive ROM from control module
+	bootloader# (.CONFIG_ON_STARTUP(1), .ROM_LOCATION(19'h5c000), .ROM_END(16'h0000)) bootloader_inst(
+		.clk(clk),
+		.host_bootdata(host_bootdata),
+		.host_bootdata_ack(host_bootdata_ack),
+		.host_bootdata_req(host_bootdata_req),
+		.host_reset(!pown_reset_n),
+		.romwrite_data(romwrite_data),
+		.romwrite_wr(romwrite_wr),
+		.romwrite_addr(romwrite_addr),
+		.rom_initialised(host_rom_initialised)
+	);
+
 endmodule
 
 module rom ( // ROM de 32KB, conteniendo la lower ROM y la upper ROM 0
@@ -181,12 +223,16 @@ module rom ( // ROM de 32KB, conteniendo la lower ROM y la upper ROM 0
     //$readmemh ("wiz.hex", mem, 0);
 
 // CPC4128
-//     $readmemh ("os6128.hex", mem, 16'h0000, 16'h3FFF);
-//     $readmemh ("basic1-1.hex", mem, 16'h4000, 16'h7FFF);
+    $readmemh ("os6128.hex", mem, 16'h0000, 16'h3FFF);
+    $readmemh ("basic1-1.hex", mem, 16'h4000, 16'h7FFF);
 
 //  Diagnostics
-    $readmemh ("AmstradDiagLower.rom.hex",  mem, 16'h0000, 16'h3FFF);
-    $readmemh ("AmstradDiagUpper.rom.hex", mem, 16'h4000, 16'h7FFF);
+//     $readmemh ("AmstradDiagLower.rom.hex",  mem, 16'h0000, 16'h3FFF);
+//     $readmemh ("AmstradDiagUpper.rom.hex", mem, 16'h4000, 16'h7FFF);
+
+// DOS
+//     $readmemh ("amsdos.hex", mem, 16'h8000, 16'hbFFF);
+
 end
   
   always @(posedge clk)
@@ -205,13 +251,27 @@ module ram (
   // Interface actual con la SRAM
   output tri [20:0] sram_addr,
   inout wire [7:0] sram_data,
-  output tri sram_we_n
+  output tri sram_we_n,
+  // boot roms
+	input wire[7:0] romwrite_data,
+	input wire romwrite_wr,
+	input wire[18:0] romwrite_addr,
+	input wire rom_initialised  
   );
   
   // Aquí se decide cuándo la SRAM conmuta a bus de entrada o salida, según lo que se haga sea lectura o escritura
-  assign sram_data = (sram_we_n == 1'b0)? din : 8'hZZ;
-  assign sram_we_n = (reset_n == 1'b0)? 1'bz : ras_n | cas_n | we_n;
-  assign sram_addr = (reset_n == 1'b0)? 21'hZZZZZZ : addr;
+  assign sram_data = 
+//     (sram_we_n == 1'b0)? din : 8'hZZ;
+    !rom_initialised ? (romwrite_wr ? romwrite_data : 8'hZZ) :
+    (sram_we_n == 1'b0)? din : 8'hZZ;
+  assign sram_we_n = 
+//     (reset_n == 1'b0)? 1'bz : ras_n | cas_n | we_n;
+    (reset_n == 1'b0)? 1'bz :
+    !rom_initialised ? !romwrite_wr : ras_n | cas_n | we_n;
+  assign sram_addr = 
+//     (reset_n == 1'b0)? 21'hZZZZZZ : addr;
+    (reset_n == 1'b0)? 21'hZZZZZZ :
+    !rom_initialised ? {2'b00,romwrite_addr} : addr;
   
   reg [20:0] addr;
   

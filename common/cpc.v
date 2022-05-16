@@ -51,8 +51,11 @@ module cpc (
 	input wire[31:0] disk_cr,
 	input wire disk_data_clkout,
 	input wire disk_data_clkin,
-	input wire[1:0] disk_wp
-
+	input wire[1:0] disk_wp,
+	input wire[31:0] host_bootdata,
+  input wire host_bootdata_req,
+  output wire host_bootdata_ack,
+  output wire host_rom_initialised
   );
 
   // Señales del CRTC
@@ -305,7 +308,13 @@ module cpc (
     .data_to_ga(data_to_ga),
     .sram_addr(sram_addr),
     .sram_data(sram_data),
-    .sram_we_n(sram_we_n)
+    .sram_we_n(sram_we_n),
+    // rom loading
+		.host_bootdata(host_bootdata),
+		.host_bootdata_ack(host_bootdata_ack),
+		.host_bootdata_req(host_bootdata_req),
+		.host_rom_initialised(host_rom_initialised),
+		.pown_reset_n(pown_reset_n)
   );
 
   YM2149 sonido_ay_3 (
