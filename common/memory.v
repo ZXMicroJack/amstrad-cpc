@@ -111,7 +111,7 @@ module memory_cpc464 (
     .romwrite_addr(romwrite_addr),
     .rom_initialised(host_rom_initialised),
     // external roms
-    .romread(romen_n == 1'b0 && external_rom_bank),
+    .romread(cpu_n == 1'b0 && romen_n == 1'b0 && external_rom_bank),
     .rom_bank(rom_bank)
   );
 
