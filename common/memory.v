@@ -79,12 +79,12 @@ module memory_cpc464 (
   reg[7:0] rom_bank = 8'h00;
   
   // implement basic ROM bank switching
-//   always @(posedge clk) begin
-//     if (!reset_n)
-//       rom_bank[7:0] <= 8'h00;
-//     else if (cpu_addr[15:8] == 8'hdf && !iorq_n && !wr_n)
-//       rom_bank[7:0] <= cpu_addr[7:0] + 1;
-//   end
+  always @(posedge clk) begin
+    if (!reset_n)
+      rom_bank[7:0] <= 8'h00;
+    else if (cpu_addr[15:8] == 8'hdf && !iorq_n && !wr_n)
+      rom_bank[7:0] <= data_from_cpu[7:0];
+  end
   
   // Instanciamos la ROM, que de momento estará en BRAM
   rom romcpc (
@@ -109,7 +109,10 @@ module memory_cpc464 (
     .romwrite_data(romwrite_data),
     .romwrite_wr(romwrite_wr),
     .romwrite_addr(romwrite_addr),
-    .rom_initialised(host_rom_initialised)
+    .rom_initialised(host_rom_initialised),
+    // external roms
+    .romread(romen_n == 1'b0 && external_rom_bank),
+    .rom_bank(rom_bank)
   );
 
   // Latch LS373 (IC114)
@@ -120,14 +123,17 @@ module memory_cpc464 (
   end
   
   // Aqui se decide qué cosa ve la CPU, si un dato de ROM o de RAM
+  wire internal_rom_bank = cpu_addr[15:14] == 2'b00 || (cpu_addr[15:14] == 2'b11 && rom_bank[7:0] != 8'h07);
+  wire external_rom_bank = (cpu_addr[15:14] == 2'b11 && rom_bank[7:0] == 8'h07);
   always @* begin
     data_to_cpu = 8'hFF;
     memory_oe_n = 1'b1;
-    if (romen_n == 1'b0) begin //  && (cpu_addr[15:14] == 2'b00 || (cpu_addr[15:14] == 2'b11 && rom_bank[7:0] == 8'h00))) begin
+//     if (romen_n == 1'b0) begin
+    if (romen_n == 1'b0 && internal_rom_bank) begin
       data_to_cpu = data_from_rom;
       memory_oe_n = 1'b0;
     end
-    else if (ramrd_n == 1'b0) begin
+    else if (ramrd_n == 1'b0 || (romen_n == 1'b0 && external_rom_bank)) begin
       data_to_cpu = latch_data_from_ram;
       memory_oe_n = 1'b0;
     end
@@ -180,9 +186,9 @@ module memory_cpc464 (
     if (cpu_n == 1'b0)
       dram_addr = 
 //         !host_rom_initialised ? {2'b00, romwrite_addr} :
-        {3'b000, ram_page[3:0], cpu_addr[13:0]};
-//         romen_n ? {3'b000, ram_page[3:0], cpu_addr[13:0]} :
-//         {3'b001, rom_bank[3:0], cpu_addr[13:0]};
+//         {3'b000, ram_page[3:0], cpu_addr[13:0]};
+        romen_n ? {3'b000, ram_page[3:0], cpu_addr[13:0]} :
+        {3'b001, rom_bank[3:0], cpu_addr[13:0]};
     else
       dram_addr = {5'b00000, vram_addr};
   end
@@ -256,7 +262,10 @@ module ram (
 	input wire[7:0] romwrite_data,
 	input wire romwrite_wr,
 	input wire[18:0] romwrite_addr,
-	input wire rom_initialised  
+	input wire rom_initialised,
+	// external rom reading
+	input wire romread,
+	input wire[7:0] rom_bank
   );
   
   // Aquí se decide cuándo la SRAM conmuta a bus de entrada o salida, según lo que se haga sea lectura o escritura
@@ -271,7 +280,9 @@ module ram (
   assign sram_addr = 
 //     (reset_n == 1'b0)? 21'hZZZZZZ : addr;
     (reset_n == 1'b0)? 21'hZZZZZZ :
-    !rom_initialised ? {2'b00,romwrite_addr} : addr;
+    !rom_initialised ? {2'b00,romwrite_addr} : 
+    romread ? {2'b00,1'b1,rom_bank[3:0],addr[13:0]} :
+    addr;
   
   reg [20:0] addr;
   
@@ -279,7 +290,7 @@ module ram (
   always @(posedge clk) begin
     if (ras_n == 1'b0)
       addr <= a;
-    if (ras_n == 1'b0 && cas_n == 1'b0 && we_n == 1'b1)
+    if ((ras_n == 1'b0 && cas_n == 1'b0 && we_n == 1'b1) || romread)
       dout <= sram_data;
   end
 endmodule  

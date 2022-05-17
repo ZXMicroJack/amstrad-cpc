@@ -169,7 +169,7 @@ module cpc (
     .busak_n(), 
     .A(a), 
     .dout(cpu_dout),
-    .reset_n(reset_n), 
+    .reset_n(reset_n && host_rom_initialised), 
     .clk(clk_cpu), 
     .wait_n(ready), 
     .int_n(int_n), 
