@@ -55,7 +55,8 @@ module cpc (
 	input wire[31:0] host_bootdata,
   input wire host_bootdata_req,
   output wire host_bootdata_ack,
-  output wire host_rom_initialised
+  output wire host_rom_initialised,
+  output wire[31:0] debug
   );
 
   // Señales del CRTC
@@ -373,7 +374,8 @@ module cpc (
     .disk_data_clkin(disk_data_clkin),
     .disk_wp(disk_wp),
     .rd_n(rd_n),
-    .wr_n(wr_n)
+    .wr_n(wr_n),
+    .debug(debug)
   );
   
 

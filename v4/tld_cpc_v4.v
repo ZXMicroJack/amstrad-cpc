@@ -112,6 +112,7 @@ module tld_cpc (
   wire host_bootdata_ack;
   wire host_bootdata_req;
   wire host_rom_initialised;
+  wire[31:0] debug;
   
   cpc la_maquina (
     .ck16(ck16),
@@ -141,10 +142,10 @@ module tld_cpc (
     .sram_we_n(sram_we_n),
     
      // disk interface
-    .disk_data_in(disk_data_out),
-    .disk_data_out(disk_data_in),
-    .disk_data_clkin(disk_data_clkout),
-    .disk_data_clkout(disk_data_clkin),
+    .disk_data_in(disk_data_in),
+    .disk_data_out(disk_data_out),
+    .disk_data_clkin(disk_data_clkin),
+    .disk_data_clkout(disk_data_clkout),
 
       // disk interface
     .disk_sr(disk_sr),
@@ -155,9 +156,12 @@ module tld_cpc (
 		.host_bootdata(host_bootdata),
 		.host_bootdata_ack(host_bootdata_ack),
 		.host_bootdata_req(host_bootdata_req),
-		.host_rom_initialised(host_rom_initialised)
+		.host_rom_initialised(host_rom_initialised),
+		
+		// debug
+		.debug(debug)
   );
-  assign led = host_rom_initialised;
+//   assign led = host_rom_initialised;
 
   wire [7:0] riosd;
   wire [7:0] giosd;
@@ -192,7 +196,9 @@ module tld_cpc (
   wire[15:0] dswitch;
   wire host_divert_sdcard;
 
-  
+//     always @(posedge clk390k625)
+    assign led = sd_cs_n ? 1'b0 : 1'b1;
+
   CtrlModule MyCtrlModule (
 //     .clk(clk6),
 //     .clk26(clk48),
@@ -242,7 +248,7 @@ module tld_cpc (
 		.host_bootdata(host_bootdata),
 		.host_bootdata_ack(host_bootdata_ack),
 		.host_bootdata_req(host_bootdata_req),
-		.host_rom_initialised(host_rom_initialised)
+		.host_rom_initialised(host_rom_initialised),
     
 	// from/to ctrl-module
 
@@ -253,6 +259,8 @@ module tld_cpc (
 //       .tape_hreq(tape_hreq),
 //       .tape_busy(tape_busy),
 //       .cpu_reset(1'b0)
+		// debug
+		.debug(debug)
 	
    );
 
