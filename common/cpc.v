@@ -56,7 +56,8 @@ module cpc (
   input wire host_bootdata_req,
   output wire host_bootdata_ack,
   output wire host_rom_initialised,
-  output wire[31:0] debug
+  output wire[31:0] debug,
+  output wire[31:0] debug2
   );
 
   // Señales del CRTC
@@ -159,6 +160,10 @@ module cpc (
     endcase
   end
 
+  assign debug2[31:0] = {a[15:0], 
+    rd_n, wr_n, mreq_n, iorq_n,
+    12'd0};
+    
   z80 cpu (
     .m1_n(m1_n), 
     .mreq_n(mreq_n), 

@@ -24,6 +24,7 @@ module nec765 (
   reg fifo_reset = 1'b0;
   reg fifo_out_read = 1'b0;
   reg side_latched = 1'b0;
+  wire fifo_in_full;
 
 //wd1770 regs
   reg recnotfound = 0;
@@ -69,7 +70,9 @@ module nec765 (
     .write(fifo_in_write),
     .read(disk_data_clkout),
     .reset(fifo_reset),
-    .empty(fifo_out_empty));
+    .empty(fifo_out_empty),
+    .full(fifo_in_full)
+    );
 
 
 
@@ -144,15 +147,17 @@ reg[3:0] params_pos = 0;
 
 wire rfm = status == STATUS_IDLE || 
   (status == STATUS_EXEC && state == READING && !fifo_empty) ||
-  (status == STATUS_EXEC && ins[4:0] == WRITE_DATA && fifo_in_size != 511) ||
+  (status == STATUS_EXEC && ins[4:0] == WRITE_DATA && fifo_in_size != 512) ||
   (status == STATUS_RX && results_len != results_pos) ||
   (status == STATUS_CMD && params_len != params_pos);
 wire dio = status == STATUS_RX || (status == STATUS_EXEC && ins[4:0] == READ_DATA);
 wire exm = status == STATUS_EXEC;
 wire busy = status != STATUS_IDLE;
-wire fdcbusy0 = status != STATUS_IDLE && !fdselect;
-wire fdcbusy1 = status != STATUS_IDLE && fdselect;
+// wire fdcbusy0 = status != STATUS_IDLE && !fdselect;
+// wire fdcbusy1 = status != STATUS_IDLE && fdselect;
 // {rfm, dio, exm, busy, 2'b00, fdcbusy1, fdcbusy0};
+wire fdcbusy0 = 1'b0;
+wire fdcbusy1 = 1'b0;
 
 reg[7:0] ins;
 
@@ -270,6 +275,7 @@ always @(posedge clk) begin
         SENSE_INT_STATUS: begin
           params_len <= 0;
           results_len <= 2;
+//           results[0] <= {2'b00,1'b1, 1'b0, not_ready, params[0][2:0]};
           results[0] <= {2'b00,1'b1, 1'b0, not_ready, params[0][2:0]};
           results[1] <= pcn;
           status <= STATUS_RX;
@@ -367,17 +373,23 @@ always @(posedge clk) begin
     disk_sr[21] <= 1'b0; // reset sector write command
     disk_sr[16] <= 1'b1; // signal ack of ack
     recnotfound <= disk_cr[3];
-    state <= disk_cr[3] ? IDLE : WAITEND;
+    state <= IDLE;
     
     status <= STATUS_RX;
 
     results_len <= 7;
 // TODO uncomment
-    results[0] <= {2'b01,1'b1, 1'b0, not_ready, params[0][2:0]};
 //       results[1] <= {bad_cylinder, 0, data_error, 1'b0, 1'b0, 1'b1/*no_sector*/, disk_wp[params[0][0]], 1'b1/*no_addr_mark*/};
     // should not be write protected on a  read fail
-    results[1] <= {bad_cylinder, 0, data_error, 1'b0, 1'b0, 1'b1/*no_sector*/, 1'b0, 1'b1/*no_addr_mark*/};
-    results[2] <= {0, cm, crc_error, wrong_cylinder, scan_equal_hit, scan_not_found, bad_cylinder, 1'b1/*no_addr_mark*/};
+    if (disk_cr[3]) begin 
+      results[0] <= {2'b01,1'b1, 1'b0, not_ready, params[0][2:0]};
+      results[1] <= {bad_cylinder, 0, data_error, 1'b0, 1'b0, 1'b1/*no_sector*/, 1'b0, 1'b1/*no_addr_mark*/};
+      results[2] <= {0, cm, crc_error, wrong_cylinder, scan_equal_hit, scan_not_found, bad_cylinder, 1'b1/*no_addr_mark*/};
+    end else begin
+      results[0] <= {2'b00,1'b1, 1'b0, not_ready, params[0][2:0]};
+      results[1] <= {bad_cylinder, 0, data_error, 1'b0, 1'b0, 1'b1/*no_sector*/, 1'b0, no_addr_mark};
+      results[2] <= {0, cm, crc_error, wrong_cylinder, scan_equal_hit, scan_not_found, bad_cylinder, no_addr_mark};
+    end
     results[3] <= cylinder;
     results[4] <= head;
     results[5] <= sector_id;

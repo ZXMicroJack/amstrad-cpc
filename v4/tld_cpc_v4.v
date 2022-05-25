@@ -113,6 +113,7 @@ module tld_cpc (
   wire host_bootdata_req;
   wire host_rom_initialised;
   wire[31:0] debug;
+  wire[31:0] debug2;
   
   cpc la_maquina (
     .ck16(ck16),
@@ -159,7 +160,8 @@ module tld_cpc (
 		.host_rom_initialised(host_rom_initialised),
 		
 		// debug
-		.debug(debug)
+		.debug(debug),
+		.debug2(debug2)
   );
 //   assign led = host_rom_initialised;
 
@@ -260,7 +262,8 @@ module tld_cpc (
 //       .tape_busy(tape_busy),
 //       .cpu_reset(1'b0)
 		// debug
-		.debug(debug)
+		.debug(debug),
+		.debug2(debug2)
 	
    );
 
