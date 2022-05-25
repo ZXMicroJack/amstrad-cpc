@@ -34,7 +34,7 @@ HW_OBJ = $(COMMON_OBJ) $(patsubst $(SRCDIR)/%.c,$(BUILD_DIR)/%.hwo,$(HW_SRC))
 # Regular C files
 
 MAIN_PRJ = CtrlROM
-MAIN_SRC_T = main.c interrupts.c keyboard.c ps2.c menu.c spi.c minfat.c swap.c fileselector.c storage.c tape.c disk.c misc.c uart.c machinemenu.c
+MAIN_SRC_T = main.c interrupts.c keyboard.c ps2.c menu.c spi.c minfat.c swap.c fileselector.c storage.c tape.c misc.c disk.c diskecpc.c diskraw.c uart.c machinemenu.c
 MAIN_SRC = $(patsubst %.c,$(SRCDIR)/%.c,$(MAIN_SRC_T))
 MAIN_OBJ = $(HW_OBJ) $(patsubst $(SRCDIR)/%.c,$(BUILD_DIR)/%.o,$(MAIN_SRC))
 

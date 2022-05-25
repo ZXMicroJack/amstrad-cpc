@@ -155,13 +155,14 @@ wire fdcbusy1 = status != STATUS_IDLE && fdselect;
 
 reg[7:0] ins;
 
-reg not_ready = 1'b0;
+// reg not_ready = 1'b0;
+wire not_ready = !(|disk_cr[31:24]);
 reg bad_cylinder = 1'b0;
 reg data_error = 1'b0;
 // reg no_sector = 1'b0;
-wire no_sector = recnotfound;
+wire no_sector = recnotfound | not_ready;
 // reg no_addr_mark = 1'b0;
-wire no_addr_mark = recnotfound;
+wire no_addr_mark = recnotfound | not_ready;
 
 reg scan_equal_hit = 1'b0;
 reg scan_not_found = 1'b0;
@@ -173,7 +174,8 @@ reg[7:0] sto = 8'h00;
 reg[7:0] pcn = 8'h00;
 reg fault_fdd = 1'b0;
 
-reg rdy_fdd = 1'b0;
+// reg rdy_fdd = 1'b0;
+wire rdy_fdd = not_ready;
 reg trk0_fdd = 1'b0;
 reg side_fdd = 1'b0;
 reg sideselect_fdd = 1'b0;
@@ -291,12 +293,16 @@ always @(posedge clk) begin
           status <= STATUS_IDLE;
         end else if (ins[4:0] == READ_ID) begin
           results_len <= 7;
-          results[0] <= {2'b00,1'b1, 1'b0, not_ready, params[0][2:0]};
-          results[1] <= {bad_cylinder, 0, data_error, 1'b0, 1'b0, no_sector, disk_wp[params[0][0]], no_addr_mark};
+          // top 2 bits are how the commmand terminated.  not_ready being = 1 would result in 01 = abnormal termination
+// TODO uncomment
+          results[0] <= {1'b0, not_ready, 1'b1, 1'b0, not_ready, params[0][2:0]};
+//           results[1] <= {bad_cylinder, 0, data_error, 1'b0, 1'b0, no_sector, disk_wp[params[0][0]], no_addr_mark};
+// should not be WP on a read
+          results[1] <= {bad_cylinder, 0, data_error, 1'b0, 1'b0, no_sector, 1'b0, no_addr_mark};
           results[2] <= {0, cm, crc_error, wrong_cylinder, scan_equal_hit, scan_not_found, bad_cylinder, no_addr_mark};
           results[3] <= cylinder;
           results[4] <= head;
-          results[5] <= 8'hc1;
+          results[5] <= disk_cr[31:24]; // sector_id
           results[6] <= sector_size;
         end else if (ins[4:0] == READ_DATA) begin
           state <= STARTREAD;
@@ -352,8 +358,11 @@ always @(posedge clk) begin
       status <= STATUS_RX;
       
       results_len <= 7;
-      results[0] <= {2'b00,1'b1, 1'b0, not_ready, params[0][2:0]};
-      results[1] <= {bad_cylinder, 0, data_error, 1'b0, 1'b0, 1'b1/*no_sector*/, disk_wp[params[0][0]], 1'b1/*no_addr_mark*/};
+// TODO uncomment
+      results[0] <= {2'b01,1'b1, 1'b0, not_ready, params[0][2:0]};
+//       results[1] <= {bad_cylinder, 0, data_error, 1'b0, 1'b0, 1'b1/*no_sector*/, disk_wp[params[0][0]], 1'b1/*no_addr_mark*/};
+      // should not be write protected on a  read fail
+      results[1] <= {bad_cylinder, 0, data_error, 1'b0, 1'b0, 1'b1/*no_sector*/, 1'b0, 1'b1/*no_addr_mark*/};
       results[2] <= {0, cm, crc_error, wrong_cylinder, scan_equal_hit, scan_not_found, bad_cylinder, 1'b1/*no_addr_mark*/};
       results[3] <= cylinder;
       results[4] <= head;
