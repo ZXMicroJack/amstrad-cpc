@@ -313,14 +313,25 @@ always @(posedge clk) begin
           results[5] <= disk_cr[31:24]; // sector_id
           results[6] <= sector_size;
         end else if (ins[4:0] == WRITE_DATA) begin
-          state <= STARTWRITE;
-          cylinder <= params[1];
-          head <= params[2][0];
-          sector_id <= params[3];
-          fifo_reset <= 1'b1;
-          fifo_in_size <= 1'b0;
-          status <= STATUS_EXEC;
-          
+          if (disk_wp[params[0][0]]) begin
+            status <= STATUS_RX;
+            results_len <= 7;
+            results[0] <= {2'b01,1'b1, 1'b0, not_ready, params[0][2:0]};
+            results[1] <= {bad_cylinder, 0, data_error, 1'b0, 1'b0, no_sector, 1'b1, no_addr_mark};
+            results[2] <= {0, cm, crc_error, wrong_cylinder, scan_equal_hit, scan_not_found, bad_cylinder, no_addr_mark};
+            results[3] <= cylinder;
+            results[4] <= head;
+            results[5] <= sector_id;
+            results[6] <= sector_size;
+          end else begin
+            state <= STARTWRITE;
+            cylinder <= params[1];
+            head <= params[2][0];
+            sector_id <= params[3];
+            fifo_reset <= 1'b1;
+            fifo_in_size <= 1'b0;
+            status <= STATUS_EXEC;
+          end
         end else if (ins[4:0] == READ_DATA) begin
           state <= STARTREAD;
 
