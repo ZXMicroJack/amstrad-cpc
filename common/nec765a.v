@@ -219,6 +219,7 @@ always @(posedge clk) begin
         fifo_out_read <= 1'b1;
         dout[7:0] <= fifo_out_data[7:0];
         if (datalen == 511) begin
+          state <= IDLE;
           status <= STATUS_RX;
           results_len <= 7;
           results[0] <= {2'b00,1'b1, 1'b0, not_ready, params[0][2:0]};
