@@ -118,6 +118,7 @@ module kb_matrix (
     always @(posedge clk) begin
         if (new_key_aval == 1'b1) begin
             case (scancode)
+                //TODO - matrix[1][1] is not mapped to copy
                 // Special and control keys
                 `KEY_LSHIFT,
                 `KEY_RSHIFT:
