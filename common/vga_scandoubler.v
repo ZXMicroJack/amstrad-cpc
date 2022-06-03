@@ -70,16 +70,21 @@ module vga_scandoubler (
 	// Voy alternativamente escribiendo en una mitad o en otra del scan buffer
 	// Cambio de mitad cada vez que encuentro un pulso de sincronismo horizontal
 	// En "totalhor" mido el número de ciclos de reloj que hay en un scan
+	
+	reg vsync_ext_n_prev = 1'b0;
 	always @(posedge clkvideo) begin
-       if (vsync_ext_n == 1'b0) begin
-           addrvideo <= 11'd0;
-       end
-		else if (hsync_ext_n == 1'b0 && addrvideo[9:7] != 3'b000) begin
+    vsync_ext_n_prev <= vsync_ext_n;
+    
+    if (vsync_ext_n & ~vsync_ext_n_prev) begin
+        addrvideo[10] <= 1'b0;
+    end
+    
+		if (hsync_ext_n == 1'b0 && addrvideo[9:7] != 3'b000) begin
 			totalhor <= addrvideo[9:0];
 			addrvideo <= {~addrvideo[10],10'b0000000000};
 		end
 		else
-			addrvideo <= addrvideo + 11'd1;
+			addrvideo[9:0] <= addrvideo[9:0] + 11'd1;
 	end
 	
 	// Recorro el scanbuffer al doble de velocidad, generando direcciones para
@@ -90,12 +95,16 @@ module vga_scandoubler (
 	// Cada vez que termino de recorrer el scan buffer basculo "scaneffect" que
 	// uso después para mostrar los píxeles a su brillo nominal, o con su brillo
 	// reducido para un efecto chachi de scanlines en la VGA
+	
+	reg vsync_ext_n_prev_vga = 1'b0;
 	always @(posedge clkvga) begin
-       if (vsync_ext_n == 1'b0) begin
-           addrvga <= 11'b10000000000;
-           scaneffect <= 1'b0;
-       end    
-		else if (addrvga[9:0] == totalhor && hsync_ext_n == 1'b1) begin
+    vsync_ext_n_prev_vga <= vsync_ext_n;
+    if (vsync_ext_n & ~vsync_ext_n_prev_vga) begin
+      addrvga[10] <= 1'b1;
+      scaneffect <= 1'b0;
+    end
+    
+		if (addrvga[9:0] == totalhor && hsync_ext_n == 1'b1) begin
 			addrvga <= {addrvga[10], 10'b000000000};
 			scaneffect <= ~scaneffect;
 		end
@@ -104,7 +113,7 @@ module vga_scandoubler (
 			scaneffect <= ~scaneffect;
 		end
 		else
-			addrvga <= addrvga + 11'd1;
+			addrvga[9:0] <= addrvga[9:0] + 11'd1;
 	end
 
 	// El HSYNC de la VGA está bajo sólo durante HSYNC_COUNT ciclos a partir del comienzo
