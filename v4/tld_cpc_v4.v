@@ -65,6 +65,7 @@ module tld_cpc (
   wire blue, blue_oe;
   wire hsync_pal, vsync_pal, csync_pal;
   
+  wire mono;
   wire [2:0] ri = (red_oe)? {red,red,red} : 3'd4;
   wire [2:0] gi = (green_oe)? {green,green,green} : 3'd4;
   wire [2:0] bi = (blue_oe)? {blue,blue,blue} : 3'd4;
@@ -124,6 +125,7 @@ module tld_cpc (
     .green_oe(green_oe),
     .blue(blue),
     .blue_oe(blue_oe),
+    .mono(mono),
     .hsync_pal(hsync_pal),
     .vsync_pal(vsync_pal),
     .csync_pal(csync_pal),
@@ -199,7 +201,8 @@ module tld_cpc (
   wire host_divert_sdcard;
 
 //     always @(posedge clk390k625)
-    assign led = sd_cs_n ? 1'b0 : 1'b1;
+//     assign led = sd_cs_n ? 1'b0 : 1'b1;
+  assign led = mono;
 
   CtrlModule MyCtrlModule (
 //     .clk(clk6),
@@ -273,9 +276,22 @@ module tld_cpc (
 
    wire[7:0] vga_red_i, vga_green_i, vga_blue_i;
 
-   assign vga_red_i = {ri[2:0], 5'h0};
-   assign vga_green_i = {gi[2:0], 5'h0};
-   assign vga_blue_i = {bi[2:0], 5'h0};
+   wire[2:0] ri2;
+   wire[2:0] gi2;
+   wire[2:0] bi2;
+   greenscreen greenscreen_inst(
+      .ri(ri[2:0]),
+      .gi(gi[2:0]),
+      .bi(bi[2:0]),
+      .ro(ri2[2:0]),
+      .go(gi2[2:0]),
+      .bo(bi2[2:0]),
+      .mono(mono)
+   );
+   
+   assign vga_red_i = {ri2[2:0], 5'h0};
+   assign vga_green_i = {gi2[2:0], 5'h0};
+   assign vga_blue_i = {bi2[2:0], 5'h0};
    
    // OSD Overlay
    OSD_Overlay overlay (
@@ -296,4 +312,66 @@ module tld_cpc (
    );
    
    
+endmodule
+
+module greenscreen(
+      input wire[2:0] ri,
+      input wire[2:0] gi,
+      input wire[2:0] bi,
+      output wire[2:0] ro,
+      output wire[2:0] go,
+      output wire[2:0] bo,
+      input wire mono);
+
+  reg[2:0] r;
+  reg[2:0] g;
+  reg[2:0] b;
+  
+  assign go = mono ? r + g + b : gi;
+  assign ro = mono ? {1'b0, g[2:1]} : ri;
+  assign bo = mono ? {2'b00, g[2]} : bi;
+  
+  
+  always @* begin  // a LUT
+        case (ri[2:0])  
+            3'd0 : r[2:0] = 3'd0;
+            3'd1 : r[2:0] = 3'd0;
+            3'd2 : r[2:0] = 3'd1;
+            3'd3 : r[2:0] = 3'd1;
+            3'd4 : r[2:0] = 3'd1;
+            3'd5 : r[2:0] = 3'd1;
+            3'd6 : r[2:0] = 3'd2;
+            3'd7 : r[2:0] = 3'd2;
+            default: r[2:0] = 3'd0;
+        endcase
+    end
+    
+    always @* begin  // a LUT
+        case (gi[2:0])
+            3'd0 : g[2:0] = 3'd0;
+            3'd1 : g[2:0] = 3'd1;
+            3'd2 : g[2:0] = 3'd1;
+            3'd3 : g[2:0] = 3'd2;
+            3'd4 : g[2:0] = 3'd2;
+            3'd5 : g[2:0] = 3'd3;
+            3'd6 : g[2:0] = 3'd4;
+            3'd7 : g[2:0] = 3'd4;
+            default: g[2:0] = 3'd0;
+        endcase
+    end
+    
+    always @* begin  // a LUT
+        case (bi[2:0])
+            3'd0 : b[2:0] = 3'd0;
+            3'd1 : b[2:0] = 3'd0;
+            3'd2 : b[2:0] = 3'd0;
+            3'd3 : b[2:0] = 3'd0;
+            3'd4 : b[2:0] = 3'd0;
+            3'd5 : b[2:0] = 3'd1;
+            3'd6 : b[2:0] = 3'd1;
+            3'd7 : b[2:0] = 3'd1;
+            default: b[2:0] = 3'd0;
+        endcase
+    end
+
 endmodule

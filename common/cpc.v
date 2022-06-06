@@ -57,9 +57,10 @@ module cpc (
   output wire host_bootdata_ack,
   output wire host_rom_initialised,
   output wire[31:0] debug,
-  output wire[31:0] debug2
+  output wire[31:0] debug2,
+  output wire mono
   );
-
+  
   // Señales del CRTC
 	wire vsync, hsync, dispen;
   wire [13:0] ma;
@@ -282,7 +283,8 @@ module cpc (
     .joyfire2(joyfire2),
     .kbd_mreset(kbd_mreset),
     .kbd_reset(kbd_reset),
-    .kbd_nmi(kbd_nmi)
+    .kbd_nmi(kbd_nmi),
+    .kbd_greenscreen(mono)
   );
 
   multiboot vuelta_bios (

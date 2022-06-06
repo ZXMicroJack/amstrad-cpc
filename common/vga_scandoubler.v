@@ -72,16 +72,20 @@ module vga_scandoubler (
 	// En "totalhor" mido el número de ciclos de reloj que hay en un scan
 	
 	reg vsync_ext_n_prev = 1'b0;
+	reg hsync_ext_n_prev = 1'b0;
 	always @(posedge clkvideo) begin
     vsync_ext_n_prev <= vsync_ext_n;
+    hsync_ext_n_prev <= hsync_ext_n;
     
     if (vsync_ext_n & ~vsync_ext_n_prev) begin
         addrvideo[10] <= 1'b0;
+    end else if (hsync_ext_n & ~hsync_ext_n_prev) begin
+        addrvideo[10] <= ~addrvideo[10];
     end
     
 		if (hsync_ext_n == 1'b0 && addrvideo[9:7] != 3'b000) begin
 			totalhor <= addrvideo[9:0];
-			addrvideo <= {~addrvideo[10],10'b0000000000};
+			addrvideo[9:0] <= 10'b0000000000;
 		end
 		else
 			addrvideo[9:0] <= addrvideo[9:0] + 11'd1;
@@ -97,19 +101,24 @@ module vga_scandoubler (
 	// reducido para un efecto chachi de scanlines en la VGA
 	
 	reg vsync_ext_n_prev_vga = 1'b0;
+	reg hsync_ext_n_prev_vga = 1'b0;
 	always @(posedge clkvga) begin
     vsync_ext_n_prev_vga <= vsync_ext_n;
+    hsync_ext_n_prev_vga <= hsync_ext_n;
     if (vsync_ext_n & ~vsync_ext_n_prev_vga) begin
       addrvga[10] <= 1'b1;
       scaneffect <= 1'b0;
+    end else if (hsync_ext_n & ~hsync_ext_n_prev_vga) begin
+      addrvga[10] <= ~addrvga[10];
     end
+
     
 		if (addrvga[9:0] == totalhor && hsync_ext_n == 1'b1) begin
-			addrvga <= {addrvga[10], 10'b000000000};
+			addrvga[9:0] <= 10'b000000000;
 			scaneffect <= ~scaneffect;
 		end
 		else if (hsync_ext_n == 1'b0 && addrvga[9:7] != 3'b000) begin
-			addrvga <= {~addrvga[10],10'b000000000};
+			addrvga[9:0] <= 10'b000000000;
 			scaneffect <= ~scaneffect;
 		end
 		else

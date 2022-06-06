@@ -28,13 +28,15 @@ module kb_matrix (
   output wire [7:0] columns,
   output reg kbd_mreset,
   output reg kbd_reset,
-  output reg kbd_nmi
+  output reg kbd_nmi,
+  output reg kbd_greenscreen
   );
 
     initial begin
         kbd_reset = 1'b1;
         kbd_nmi = 1'b1;
         kbd_mreset = 1'b1;
+        kbd_greenscreen = 1'b0;
     end
 
     `include "mapa_teclado_es.vh"
@@ -279,6 +281,8 @@ module kb_matrix (
                     matrix[2][6] <= is_released;
                 `KEY_SPACE:
                     matrix[5][7] <= is_released;
+                `KEY_LGUI:
+                    if (is_extended) matrix[1][1] <= is_released;
                     
                 // Cursor keys
                 `KEY_UP:  // también es KEY_KP8
@@ -306,6 +310,7 @@ module kb_matrix (
                     if (!is_extended) matrix[1][7] <= is_released;
                 `KEY_KP1:
                     if (!is_extended) matrix[1][5] <= is_released;
+                    else if (!is_released) kbd_greenscreen <= ~kbd_greenscreen;
                 `KEY_KP3:
                     if (!is_extended) matrix[0][5] <= is_released;
                 `KEY_KP5:
@@ -314,7 +319,7 @@ module kb_matrix (
                     if (!is_extended) matrix[1][2] <= is_released;
                 `KEY_KP9:
                     if (!is_extended) matrix[0][3] <= is_released;
-            endcase    
+            endcase
         end
     end
 endmodule

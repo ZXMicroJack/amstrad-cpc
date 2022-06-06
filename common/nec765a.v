@@ -182,7 +182,7 @@ reg fault_fdd = 1'b0;
 
 // reg rdy_fdd = 1'b0;
 wire rdy_fdd = not_ready;
-reg trk0_fdd = 1'b0;
+wire trk0_fdd = cylinder == 7'd0;
 reg side_fdd = 1'b0;
 reg sideselect_fdd = 1'b0;
 reg cm = 1'b0;
@@ -271,6 +271,7 @@ always @(posedge clk) begin
         SEEK, SPECIFY:
           params_len <= 2;
         READ_ID, RECALIBRATE, SENSE_DRIVE_STATUS: begin
+          if (din[4:0] == RECALIBRATE) cylinder <= 7'd0;
           params_len <= 1;
         end
         SENSE_INT_STATUS: begin
@@ -333,7 +334,7 @@ always @(posedge clk) begin
             fifo_in_size <= 1'b0;
             status <= STATUS_EXEC;
           end
-        end else if (ins[4:0] == READ_DATA) begin
+        end else if (ins[4:0] == READ_DATA || ins[4:0] == READ_DELETED_DATA) begin
           state <= STARTREAD;
 
           cylinder <= params[1];

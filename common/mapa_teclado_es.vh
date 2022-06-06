@@ -114,3 +114,4 @@
 `define KEY_KPENTER 8'h5A
 `define KEY_KPSLASH 8'h4A
 `define KEY_PRTSCR 	8'h7C
+`define KEY_LGUI 	8'h1F
