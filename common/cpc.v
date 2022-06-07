@@ -161,9 +161,16 @@ module cpc (
     endcase
   end
 
-  assign debug2[31:0] = {a[15:0], 
-    rd_n, wr_n, mreq_n, iorq_n,
-    12'd0};
+  reg[15:0] pc = 16'd0;
+  reg[15:0] io = 16'd0;
+  
+  assign debug2[31:0] = {pc[15:0], io[15:0]};
+    
+  always @(posedge clk_cpu) begin
+    if (!rd_n && !mreq_n && !m1_n) pc <= a;
+    if ((!rd_n || !wr_n) && !iorq_n) io <= a;
+  end
+    
     
   z80 cpu (
     .m1_n(m1_n), 

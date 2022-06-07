@@ -109,7 +109,6 @@ reg prev_wr_n = 1'b1;
 //  mf = fm or mfm(1) mode
 //  sk = skip deleted data address mark
 
-
 localparam READ_DATA          = 5'h06; // rx:f,c,h,r,n,eot,gpl,dtl tx:st0,st1,st2,c,h,r,n
 localparam READ_DELETED_DATA  = 5'h0c; // rx:f,c,h,r,n,eot,gpl,dtl tx:st0,st1,st2,c,h,r,n
 localparam WRITE_DATA         = 5'h05; // rx:f,c,h,r,n,eot,gpl,dtl tx:st0,st1,st2,c,h,r,n
@@ -177,7 +176,8 @@ reg[6:0] cylinder = 7'h00;
 reg[7:0] sector_id = 8'h00;
 reg[7:0] sector_size = 8'h02; // 512 bytes
 reg[7:0] sto = 8'h00;
-reg[7:0] pcn = 8'h00;
+// reg[7:0] pcn = 8'h00;
+wire[7:0] pcn = cylinder;
 reg fault_fdd = 1'b0;
 
 // reg rdy_fdd = 1'b0;
@@ -193,6 +193,7 @@ reg head = 1'b0;
 reg[8:0] datalen = 0;
 
 reg readerror = 1'b0;
+reg was_seek = 1'b0;
 
 always @(posedge clk) begin
   prev_rd_n <= rd_n;
@@ -276,10 +277,15 @@ always @(posedge clk) begin
         end
         SENSE_INT_STATUS: begin
           params_len <= 0;
-          results_len <= 2;
-//           results[0] <= {2'b00,1'b1, 1'b0, not_ready, params[0][2:0]};
-          results[0] <= {2'b00,1'b1, 1'b0, not_ready, params[0][2:0]};
-          results[1] <= pcn;
+          if (was_seek) begin
+            results_len <= 2;
+            results[0] <= {2'b00,1'b1, 1'b0, not_ready, params[0][2:0]};
+            results[1] <= pcn;
+          end else begin
+            results_len <= 1;
+            results[0] <= 8'h80;
+            was_seek <= 1'b0;
+          end
           status <= STATUS_RX;
         end
         default: begin
@@ -296,6 +302,7 @@ always @(posedge clk) begin
       if ((params_pos + 1) == params_len) begin
         results_pos <= 0;
         status <= STATUS_RX;
+        was_seek <= ins[4:0] == SEEK || ins[4:0] == RECALIBRATE;
         if (ins[4:0] == SENSE_DRIVE_STATUS) begin
           results_len <= 1;
           results[0] <= {fault_fdd, disk_wp[0], rdy_fdd, trk0_fdd, side_fdd, sideselect_fdd, params[0][1:0]};
