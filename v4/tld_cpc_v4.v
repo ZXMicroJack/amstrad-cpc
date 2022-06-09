@@ -192,7 +192,7 @@ module tld_cpc (
   wire osd_window;
   wire osd_pixel;
   
-//   assign led = sd_cs_n ? 1'b0 : 1'b1;
+  assign led = sd_cs_n ? 1'b0 : 1'b1;
 // TODO
 //   always @(posedge clk390k625)
 //     led <= sd_cs_n ? 1'b0 : 1'b1;
@@ -202,7 +202,7 @@ module tld_cpc (
 
 //     always @(posedge clk390k625)
 //     assign led = sd_cs_n ? 1'b0 : 1'b1;
-  assign led = mono;
+//   assign led = mono;
 
   CtrlModule MyCtrlModule (
 //     .clk(clk6),

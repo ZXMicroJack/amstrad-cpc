@@ -181,7 +181,7 @@ wire[7:0] pcn = cylinder;
 reg fault_fdd = 1'b0;
 
 // reg rdy_fdd = 1'b0;
-wire rdy_fdd = not_ready;
+wire rdy_fdd = disk_cr[5];
 wire trk0_fdd = cylinder == 7'd0;
 reg side_fdd = 1'b0;
 reg sideselect_fdd = 1'b0;
