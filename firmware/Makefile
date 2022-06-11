@@ -54,7 +54,7 @@ HWZPUOPTS= -mno-poppcrel -mno-pushspadd -mno-callpcrel -mno-neg -mno-div -mno-mo
 
 FWOPTS = -DSYSTEM_DIR=\"AMSTRAD\" -DDISABLE_TAPE -DLOAD_INITIAL_ROM -DNO_MACHINE_MENU -DROMPAK=\"AMSDOS.ROM\" -DAMSTRADCPC -DBLOCK_SIZE=512 -DNR_DISKS=1
 
-# FWOPTS += -DFDDDEBUG 
+FWOPTS += -DFDDDEBUG 
 
 COMMON_DIR = $(SRCDIR)
 CFLAGS  = -I. -I$(COMMON_DIR)/ ${DEBUG} -c -Os $(ZPUOPTS) -ffunction-sections -fdata-sections $(FWOPTS)

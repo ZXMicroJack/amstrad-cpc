@@ -161,7 +161,7 @@ wire fdcbusy1 = 1'b0;
 reg[7:0] ins;
 
 // reg not_ready = 1'b0;
-wire not_ready = !(|disk_cr[31:24]);
+wire not_ready = !disk_cr[5];
 reg bad_cylinder = 1'b0;
 reg data_error = 1'b0;
 // reg no_sector = 1'b0;
@@ -321,6 +321,7 @@ always @(posedge clk) begin
           results[4] <= head;
           results[5] <= disk_cr[31:24]; // sector_id
           results[6] <= sector_size;
+          disk_sr[22] <= ~disk_sr[22]; // next id
         end else if (ins[4:0] == WRITE_DATA) begin
           if (disk_wp[params[0][0]]) begin
             status <= STATUS_RX;
