@@ -29,7 +29,8 @@ module kb_matrix (
   output reg kbd_mreset,
   output reg kbd_reset,
   output reg kbd_nmi,
-  output reg kbd_greenscreen
+  output reg kbd_greenscreen,
+  output reg kbd_scandoubler
   );
 
     initial begin
@@ -319,6 +320,8 @@ module kb_matrix (
                     if (!is_extended) matrix[1][2] <= is_released;
                 `KEY_KP9:
                     if (!is_extended) matrix[0][3] <= is_released;
+                `KEY_BLKSCR:
+                    kbd_scandoubler <= !is_released;
             endcase
         end
     end

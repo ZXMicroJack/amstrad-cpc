@@ -115,6 +115,7 @@ module tld_cpc (
   wire host_rom_initialised;
   wire[31:0] debug;
   wire[31:0] debug2;
+  wire kbd_scandoubler;
   
   cpc la_maquina (
     .ck16(ck16),
@@ -129,6 +130,7 @@ module tld_cpc (
     .hsync_pal(hsync_pal),
     .vsync_pal(vsync_pal),
     .csync_pal(csync_pal),
+    .kbd_scandoubler(kbd_scandoubler),
     .ear(ear),
     .audio_out_left(audio_out_left),
     .audio_out_right(audio_out_right),
@@ -170,11 +172,19 @@ module tld_cpc (
   wire [7:0] riosd;
   wire [7:0] giosd;
   wire [7:0] biosd;
+  
+  reg vga_toggle = 1'b0;
+  reg prev_kbd_scandoubler = 1'b0;
+  always @(posedge ck50) begin
+    prev_kbd_scandoubler <= kbd_scandoubler;
+    if (!prev_kbd_scandoubler && kbd_scandoubler)
+      vga_toggle <= ~vga_toggle;
+  end
 
 	vga_scandoubler #(.CLKVIDEO(16000)) salida_vga (
 		.clkvideo(ck16),
 		.clkvga(ck32),
-    .enable_scandoubling(vga_on),
+    .enable_scandoubling(vga_on ^ vga_toggle),
     .disable_scaneffect(~scanlines_on),
 		.ri(riosd[7:5]),
 		.gi(giosd[7:5]),
@@ -204,7 +214,7 @@ module tld_cpc (
 //     assign led = sd_cs_n ? 1'b0 : 1'b1;
 //   assign led = mono;
 
-  CtrlModule MyCtrlModule (
+  CtrlModule#(.USE_UART(0), .USE_TAPE(0)) MyCtrlModule (
 //     .clk(clk6),
 //     .clk26(clk48),
     .clk(ck16),

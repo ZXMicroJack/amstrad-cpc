@@ -58,7 +58,8 @@ module cpc (
   output wire host_rom_initialised,
   output wire[31:0] debug,
   output wire[31:0] debug2,
-  output wire mono
+  output wire mono,
+  output wire kbd_scandoubler
   );
   
   // Señales del CRTC
@@ -291,7 +292,8 @@ module cpc (
     .kbd_mreset(kbd_mreset),
     .kbd_reset(kbd_reset),
     .kbd_nmi(kbd_nmi),
-    .kbd_greenscreen(mono)
+    .kbd_greenscreen(mono),
+    .kbd_scandoubler(kbd_scandoubler)
   );
 
   multiboot vuelta_bios (
