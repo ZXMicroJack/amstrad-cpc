@@ -51,17 +51,8 @@ module nec765 (
     .empty(fifo_empty));
 
   reg fifo_in_write = 1'b0;
-  reg[7:0] fifo_in_data = 8'h00;
-  reg writing_sector = 1'b0;
-  reg sector_commit = 1'b0;
-
   reg[9:0] fifo_in_size = 1'b0;
-  reg prev_dsr4 = 1'b0;
   wire fifo_out_empty;
-  reg drq = 1'b0;
-//   reg spin_disk = 1'b0;
-  reg index = 1'b0;
-
 
   fifo #(.RAM_SIZE(512), .ADDRESS_WIDTH(9)) fifo_out(
     .q(disk_data_out),
@@ -127,6 +118,7 @@ localparam SENSE_INT_STATUS   = 5'h08; // rx:                      tx:sto,pcn
 localparam SPECIFY            = 5'h03; // rx:srt-hut,hlt-nd        tx:
 localparam SENSE_DRIVE_STATUS = 5'h04; // rx:f                     tx:st3
 localparam SEEK               = 5'h0f; // rx:f,ncn                 tx:
+localparam INVALID_INS        = 5'h1f;
 
 localparam STATUS_IDLE = 0;
 localparam STATUS_CMD = 1;
@@ -136,7 +128,7 @@ localparam STATUS_RX = 3;
 reg fdselect = 1'b0;
 reg[1:0] status = STATUS_IDLE;
 
-reg[7:0] results[0:7];
+// reg[7:0] results[0:7];
 reg[2:0] results_len = 0;
 reg[2:0] results_pos = 0;
 
@@ -152,9 +144,6 @@ wire rfm = status == STATUS_IDLE ||
 wire dio = status == STATUS_RX || (status == STATUS_EXEC && ins[4:0] == READ_DATA);
 wire exm = status == STATUS_EXEC;
 wire busy = status != STATUS_IDLE;
-// wire fdcbusy0 = status != STATUS_IDLE && !fdselect;
-// wire fdcbusy1 = status != STATUS_IDLE && fdselect;
-// {rfm, dio, exm, busy, 2'b00, fdcbusy1, fdcbusy0};
 wire fdcbusy0 = 1'b0;
 wire fdcbusy1 = 1'b0;
 
@@ -194,6 +183,8 @@ reg[8:0] datalen = 0;
 
 reg readerror = 1'b0;
 reg was_seek = 1'b0;
+reg disk_error = 1'b0;
+reg wp_error = 1'b0;
 
 always @(posedge clk) begin
   prev_rd_n <= rd_n;
@@ -205,7 +196,6 @@ always @(posedge clk) begin
   
   // handle chip reset
   if (!rst_n) begin
-    drq <= 1'b0;
     disk_sr[31:0] <= 0;
     fifo_reset <= 1;
     fifo_in_size <= 1'b0;
@@ -213,7 +203,7 @@ always @(posedge clk) begin
   end else fifo_reset <= 0;
 
   if (prev_rd_n && !rd_n && ce) begin
-    if (!a0) begin 
+    if (!a0) begin
       dout[7:0] <= {rfm, dio, exm, busy, 2'b00, fdcbusy1, fdcbusy0};
     end else if (status == STATUS_EXEC) begin
       if (state == READING && !fifo_empty) begin
@@ -223,30 +213,39 @@ always @(posedge clk) begin
           state <= IDLE;
           status <= STATUS_RX;
           results_len <= 7;
-          results[0] <= {2'b00,1'b1, 1'b0, not_ready, params[0][2:0]};
-          results[1] <= {bad_cylinder, 0, data_error, 1'b0, 1'b0, no_sector, disk_wp[params[0][0]], no_addr_mark};
-          results[2] <= {0, cm, crc_error, wrong_cylinder, scan_equal_hit, scan_not_found, bad_cylinder, no_addr_mark};
-          results[3] <= cylinder;
-          results[4] <= head;
-          results[5] <= sector_id;
-          results[6] <= sector_size;
         end
         datalen <= datalen + 1;
       end else if (recnotfound) begin
-//         no_sector <= 1'b1;
         status <= STATUS_RX;
+        disk_error <= 1'b1;
         results_len <= 7;
-        results[0] <= {2'b00,1'b1, 1'b0, not_ready, params[0][2:0]};
-        results[1] <= {bad_cylinder, 0, data_error, 1'b0, 1'b0, no_sector, disk_wp[params[0][0]], no_addr_mark};
-        results[2] <= {0, cm, crc_error, wrong_cylinder, scan_equal_hit, scan_not_found, bad_cylinder, no_addr_mark};
-        results[3] <= cylinder;
-        results[4] <= head;
-        results[5] <= sector_id;
-        results[6] <= sector_size;
        end
 
     end else if (status == STATUS_RX) begin
-      dout[7:0] <= results_pos != results_len ? results[results_pos] : 8'hff;
+//       dout[7:0] <= results_pos != results_len ? results[results_pos] : 8'hff;
+      if (results_pos == results_len) dout[7:0] <= 8'hff;
+      else begin
+        if (ins[4:0] == SENSE_INT_STATUS) was_seek <= 1'b0;
+          
+        case (results_pos)
+          8'h00: dout[7:0] <= 
+            ins[4:0] == SENSE_INT_STATUS && was_seek ? {2'b00,1'b1, 1'b0, not_ready, params[0][2:0]} :
+            (ins[4:0] == SENSE_INT_STATUS || ins[4:0] == INVALID_INS) ? 8'h80 :
+            ins[4:0] == SENSE_DRIVE_STATUS ? 
+              {fault_fdd, disk_wp[0], rdy_fdd, trk0_fdd, side_fdd, sideselect_fdd, params[0][1:0]} :
+              {1'b0, disk_error, 1'b1, 1'b0, not_ready, params[0][2:0]};
+              
+          8'h01: dout[7:0] <= 
+            ins[4:0] == SENSE_INT_STATUS ? pcn :
+            {bad_cylinder, 0, data_error, 1'b0, 1'b0, no_sector, wp_error, no_addr_mark};
+          8'h02: dout[7:0] <= {0, cm, crc_error, wrong_cylinder, scan_equal_hit, scan_not_found, bad_cylinder, no_addr_mark};
+          8'h03: dout[7:0] <= cylinder;
+          8'h04: dout[7:0] <= head;
+          8'h05: dout[7:0] <= sector_id;
+          8'h06: dout[7:0] <= sector_size;
+        endcase
+      end
+        
       if ((results_pos + 1) != results_len)
         results_pos <= results_pos + 1;
       else begin
@@ -260,8 +259,10 @@ always @(posedge clk) begin
   end else if (prev_wr_n && !wr_n && ce && a0) begin
     if (status == STATUS_IDLE) begin // receiving command
       params_pos <= 0;
-//       no_sector <= 1'b0;
       recnotfound <= 1'b0;
+      disk_error <= 1'b0;
+      wp_error <= 1'b0;
+
       status <= STATUS_CMD;
       ins[7:0] <= din[7:0];
       case (din[4:0])
@@ -277,22 +278,14 @@ always @(posedge clk) begin
         end
         SENSE_INT_STATUS: begin
           params_len <= 0;
-          if (was_seek) begin
-            results_len <= 2;
-            results[0] <= {2'b00,1'b1, 1'b0, not_ready, params[0][2:0]};
-            results[1] <= pcn;
-          end else begin
-            results_len <= 1;
-            results[0] <= 8'h80;
-            was_seek <= 1'b0;
-          end
+          results_len <= was_seek ? 2 : 1;
           status <= STATUS_RX;
         end
         default: begin
           params_len <= 0;
           status <= STATUS_RX;
           results_len <= 1;
-          results[0] <= 8'h80;
+          ins[7:0] <= INVALID_INS;
         end
       endcase
     
@@ -303,36 +296,25 @@ always @(posedge clk) begin
         results_pos <= 0;
         status <= STATUS_RX;
         was_seek <= ins[4:0] == SEEK || ins[4:0] == RECALIBRATE;
+
         if (ins[4:0] == SENSE_DRIVE_STATUS) begin
           results_len <= 1;
-          results[0] <= {fault_fdd, disk_wp[0], rdy_fdd, trk0_fdd, side_fdd, sideselect_fdd, params[0][1:0]};
+          
         end else if (ins[4:0] == SEEK || ins[4:0] == SPECIFY || ins[4:0] == RECALIBRATE) begin
           status <= STATUS_IDLE;
         end else if (ins[4:0] == READ_ID) begin
           results_len <= 7;
-          // top 2 bits are how the commmand terminated.  not_ready being = 1 would result in 01 = abnormal termination
-// TODO uncomment
-          results[0] <= {1'b0, not_ready, 1'b1, 1'b0, not_ready, params[0][2:0]};
-//           results[1] <= {bad_cylinder, 0, data_error, 1'b0, 1'b0, no_sector, disk_wp[params[0][0]], no_addr_mark};
-// should not be WP on a read
-          results[1] <= {bad_cylinder, 0, data_error, 1'b0, 1'b0, no_sector, 1'b0, no_addr_mark};
-          results[2] <= {0, cm, crc_error, wrong_cylinder, scan_equal_hit, scan_not_found, bad_cylinder, no_addr_mark};
-          results[3] <= cylinder;
-          results[4] <= head;
-          results[5] <= disk_cr[31:24]; // sector_id
-          results[6] <= sector_size;
+          disk_error <= not_ready;
+          sector_id[7:0] <= disk_cr[31:24];
           disk_sr[22] <= ~disk_sr[22]; // next id
+          
         end else if (ins[4:0] == WRITE_DATA) begin
           if (disk_wp[params[0][0]]) begin
             status <= STATUS_RX;
             results_len <= 7;
-            results[0] <= {2'b01,1'b1, 1'b0, not_ready, params[0][2:0]};
-            results[1] <= {bad_cylinder, 0, data_error, 1'b0, 1'b0, no_sector, 1'b1, no_addr_mark};
-            results[2] <= {0, cm, crc_error, wrong_cylinder, scan_equal_hit, scan_not_found, bad_cylinder, no_addr_mark};
-            results[3] <= cylinder;
-            results[4] <= head;
-            results[5] <= sector_id;
-            results[6] <= sector_size;
+            wp_error <= 1'b1;
+            disk_error <= 1'b1;
+            
           end else begin
             state <= STARTWRITE;
             cylinder <= params[1];
@@ -350,24 +332,10 @@ always @(posedge clk) begin
           sector_id <= params[3];
 
           datalen <= 0;
-          
-          //1c,2h,3r
-          
           status <= STATUS_EXEC;
           
         end else begin
           results_len <= 7;
-          // {ic[1:0],seek_end, no_track0_equipment_fail, not_ready, hd_at_int, us[1:0]};
-          // ic = 01 (failed) 10 (invalid command) 00 (success)
-          // hd_at_int = always 0
-          // bad cylinder
-          results[0] <= {2'b00,1'b1, 1'b0, not_ready, params[0][2:0]};
-          results[1] <= {bad_cylinder, 0, data_error, 1'b0, 1'b0, no_sector, disk_wp[params[0][0]], no_addr_mark};
-          results[2] <= {0, cm, crc_error, wrong_cylinder, scan_equal_hit, scan_not_found, bad_cylinder, no_addr_mark};
-          results[3] <= cylinder;
-          results[4] <= head;
-          results[5] <= sector_id;
-          results[6] <= sector_size;
         end
       end
     end else if (status == STATUS_EXEC) begin // doing something
@@ -395,26 +363,10 @@ always @(posedge clk) begin
     disk_sr[16] <= 1'b1; // signal ack of ack
     recnotfound <= disk_cr[3];
     state <= IDLE;
-    
     status <= STATUS_RX;
 
     results_len <= 7;
-// TODO uncomment
-//       results[1] <= {bad_cylinder, 0, data_error, 1'b0, 1'b0, 1'b1/*no_sector*/, disk_wp[params[0][0]], 1'b1/*no_addr_mark*/};
-    // should not be write protected on a  read fail
-    if (disk_cr[3]) begin 
-      results[0] <= {2'b01,1'b1, 1'b0, not_ready, params[0][2:0]};
-      results[1] <= {bad_cylinder, 0, data_error, 1'b0, 1'b0, 1'b1/*no_sector*/, 1'b0, 1'b1/*no_addr_mark*/};
-      results[2] <= {0, cm, crc_error, wrong_cylinder, scan_equal_hit, scan_not_found, bad_cylinder, 1'b1/*no_addr_mark*/};
-    end else begin
-      results[0] <= {2'b00,1'b1, 1'b0, not_ready, params[0][2:0]};
-      results[1] <= {bad_cylinder, 0, data_error, 1'b0, 1'b0, 1'b1/*no_sector*/, 1'b0, no_addr_mark};
-      results[2] <= {0, cm, crc_error, wrong_cylinder, scan_equal_hit, scan_not_found, bad_cylinder, no_addr_mark};
-    end
-    results[3] <= cylinder;
-    results[4] <= head;
-    results[5] <= sector_id;
-    results[6] <= sector_size;
+    disk_error <= disk_cr[3];
   end
 
   if (disk_cr[4] && state == READSECT) begin // finished command
@@ -423,20 +375,9 @@ always @(posedge clk) begin
     disk_sr[16] <= 1'b1; // signal ack of ack
     recnotfound <= disk_cr[3];
     if (disk_cr[3]) begin
-//       no_sector <= 1'b1;
       status <= STATUS_RX;
-      
       results_len <= 7;
-// TODO uncomment
-      results[0] <= {2'b01,1'b1, 1'b0, not_ready, params[0][2:0]};
-//       results[1] <= {bad_cylinder, 0, data_error, 1'b0, 1'b0, 1'b1/*no_sector*/, disk_wp[params[0][0]], 1'b1/*no_addr_mark*/};
-      // should not be write protected on a  read fail
-      results[1] <= {bad_cylinder, 0, data_error, 1'b0, 1'b0, 1'b1/*no_sector*/, 1'b0, 1'b1/*no_addr_mark*/};
-      results[2] <= {0, cm, crc_error, wrong_cylinder, scan_equal_hit, scan_not_found, bad_cylinder, 1'b1/*no_addr_mark*/};
-      results[3] <= cylinder;
-      results[4] <= head;
-      results[5] <= sector_id;
-      results[6] <= sector_size;
+      disk_error <= 1'b1;
     end
 
     state <= disk_cr[3] ? IDLE : READING;
@@ -451,12 +392,6 @@ always @(posedge clk) begin
       disk_sr[21:0] <= {6'b000010, head, cylinder[6:0], sector_id[7:0]};
   end
 
-//   if (state == STARTWRITE) begin
-//     state <= WRITING;
-//     fifo_reset <= 1'b1;
-//     fifo_in_size <= 1'b0;
-//   end
-  
 end
 
 //   assign debug[31:0] = disk_cr[31:0];
