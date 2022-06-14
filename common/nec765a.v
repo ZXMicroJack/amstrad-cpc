@@ -36,7 +36,7 @@ module nec765 (
   localparam READING = 2;
   localparam WRITING = 3;
   localparam COMMIT = 4;
-  localparam WAITEND = 5;
+  localparam SEEKING = 5;
   localparam STARTREAD = 6;
   localparam STARTWRITE = 7;
   reg[2:0] state = IDLE;
@@ -150,7 +150,8 @@ wire fdcbusy1 = 1'b0;
 reg[7:0] ins;
 
 // reg not_ready = 1'b0;
-wire not_ready = !disk_cr[5];
+// wire not_ready = !disk_cr[5];
+wire not_ready = !(|disk_cr[31:24]);
 reg bad_cylinder = 1'b0;
 reg data_error = 1'b0;
 // reg no_sector = 1'b0;
@@ -300,13 +301,20 @@ always @(posedge clk) begin
         if (ins[4:0] == SENSE_DRIVE_STATUS) begin
           results_len <= 1;
           
-        end else if (ins[4:0] == SEEK || ins[4:0] == SPECIFY || ins[4:0] == RECALIBRATE) begin
+        end else if (ins[4:0] == SPECIFY) begin
+          status <= STATUS_IDLE;
+        end else if (ins[4:0] == SEEK || ins[4:0] == RECALIBRATE) begin
+          state <= SEEKING;
+          cylinder <= ins[4:0] == SEEK ? params[params_pos] : 8'd0;
+          disk_sr[15:0] <= {head, (ins[4:0] == SEEK ? params[params_pos][6:0] : 6'd0), sector_id[7:0]};
+          disk_sr[16] <= 1'b0;
+          disk_sr[25:24] <= drsel ? 2'b10 : 2'b01;
           status <= STATUS_IDLE;
         end else if (ins[4:0] == READ_ID) begin
           results_len <= 7;
           disk_error <= not_ready;
           sector_id[7:0] <= disk_cr[31:24];
-          disk_sr[22] <= ~disk_sr[22]; // next id
+          disk_sr[22] <= ~disk_sr[22]; // next id (23 is disk 1)
           
         end else if (ins[4:0] == WRITE_DATA) begin
           if (disk_wp[params[0][0]]) begin
@@ -381,6 +389,13 @@ always @(posedge clk) begin
     end
 
     state <= disk_cr[3] ? IDLE : READING;
+  end
+  
+  if (disk_cr[4] && state == SEEKING) begin // finished seek
+    disk_sr[25:24] <= 2'b00;
+    disk_sr[16] <= 1'b1; // signal ack of ack
+    disk_error <= disk_cr[3];
+    state <= IDLE;
   end
 
   if (state == STARTREAD) begin
