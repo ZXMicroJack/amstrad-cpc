@@ -203,18 +203,19 @@ always @(posedge clk) begin
     state <= IDLE;
   end else fifo_reset <= 0;
 
+  if (state == READING && fifo_empty) begin
+    state <= IDLE;
+    status <= STATUS_RX;
+    results_len <= 7;
+  end
+
   if (prev_rd_n && !rd_n && ce) begin
     if (!a0) begin
       dout[7:0] <= {rfm, dio, exm, busy, 2'b00, fdcbusy1, fdcbusy0};
     end else if (status == STATUS_EXEC) begin
-      if (state == READING && !fifo_empty) begin
+      if (state == READING) begin
         fifo_out_read <= 1'b1;
         dout[7:0] <= fifo_out_data[7:0];
-        if (datalen == 511) begin
-          state <= IDLE;
-          status <= STATUS_RX;
-          results_len <= 7;
-        end
         datalen <= datalen + 1;
       end else if (recnotfound) begin
         status <= STATUS_RX;
