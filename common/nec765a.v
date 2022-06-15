@@ -180,12 +180,11 @@ reg crc_error = 1'b0;
 reg head = 1'b0;
 
 // TODO fake data
-reg[8:0] datalen = 0;
-
 reg readerror = 1'b0;
 reg was_seek = 1'b0;
 reg disk_error = 1'b0;
 reg wp_error = 1'b0;
+reg seek_good = 1'b0;
 
 always @(posedge clk) begin
   prev_rd_n <= rd_n;
@@ -216,7 +215,7 @@ always @(posedge clk) begin
       if (state == READING) begin
         fifo_out_read <= 1'b1;
         dout[7:0] <= fifo_out_data[7:0];
-        datalen <= datalen + 1;
+
       end else if (recnotfound) begin
         status <= STATUS_RX;
         disk_error <= 1'b1;
@@ -228,10 +227,11 @@ always @(posedge clk) begin
       if (results_pos == results_len) dout[7:0] <= 8'hff;
       else begin
         if (ins[4:0] == SENSE_INT_STATUS) was_seek <= 1'b0;
-          
+
         case (results_pos)
           8'h00: dout[7:0] <= 
-            ins[4:0] == SENSE_INT_STATUS && was_seek ? {2'b00,1'b1, 1'b0, not_ready, params[0][2:0]} :
+//             ins[4:0] == SENSE_INT_STATUS && state == SEEKING ? {2'b00, 1'b0, 1'b0, not_ready, params[0][2:0]} :
+            ins[4:0] == SENSE_INT_STATUS && was_seek ? {1'b0, ~seek_good, seek_good, 1'b0, not_ready, params[0][2:0]} :
             (ins[4:0] == SENSE_INT_STATUS || ins[4:0] == INVALID_INS) ? 8'h80 :
             ins[4:0] == SENSE_DRIVE_STATUS ? 
               {fault_fdd, disk_wp[0], rdy_fdd, trk0_fdd, side_fdd, sideselect_fdd, params[0][1:0]} :
@@ -256,6 +256,7 @@ always @(posedge clk) begin
         params_len <= 0;
         results_pos <= 0;
         params_pos <= 0;
+        was_seek <= 0;
       end
     end else dout[7:0] <= 8'hff;
   end else if (prev_wr_n && !wr_n && ce && a0) begin
@@ -339,8 +340,6 @@ always @(posedge clk) begin
           cylinder <= params[1];
           head <= params[2][0];
           sector_id <= params[3];
-
-          datalen <= 0;
           status <= STATUS_EXEC;
           
         end else begin
@@ -393,9 +392,11 @@ always @(posedge clk) begin
   end
   
   if (disk_cr[4] && state == SEEKING) begin // finished seek
-    disk_sr[25:24] <= 2'b00;
+    disk_sr[25:24] <= 2'b00; // reset seek
     disk_sr[16] <= 1'b1; // signal ack of ack
     disk_error <= disk_cr[3];
+    seek_good <= ~disk_cr[3];
+    was_seek <= 1'b1;
     state <= IDLE;
   end
 
