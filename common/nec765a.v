@@ -150,8 +150,8 @@ wire fdcbusy1 = 1'b0;
 reg[7:0] ins;
 
 // reg not_ready = 1'b0;
-// wire not_ready = !disk_cr[5];
-wire not_ready = !(|disk_cr[31:24]);
+wire not_ready = !disk_cr[5];
+// wire not_ready = !(|disk_cr[31:24]);
 reg bad_cylinder = 1'b0;
 reg data_error = 1'b0;
 // reg no_sector = 1'b0;
@@ -171,7 +171,7 @@ wire[7:0] pcn = cylinder;
 reg fault_fdd = 1'b0;
 
 // reg rdy_fdd = 1'b0;
-wire rdy_fdd = disk_cr[5];
+wire rdy_fdd = ~disk_cr[5];
 wire trk0_fdd = cylinder == 7'd0;
 reg side_fdd = 1'b0;
 reg sideselect_fdd = 1'b0;
