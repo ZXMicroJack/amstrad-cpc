@@ -186,9 +186,10 @@ reg was_seek = 1'b0;
 reg disk_error = 1'b0;
 reg wp_error = 1'b0;
 reg seek_good = 1'b0;
+// reg disk_changed = 1'b0;
 
 
-reg prev_disk_cr5 = 1'b0;
+// reg prev_disk_cr5 = 1'b0;
 always @(posedge clk) begin
   prev_rd_n <= rd_n;
   prev_wr_n <= wr_n;
@@ -198,10 +199,10 @@ always @(posedge clk) begin
   fifo_in_write <= 1'b0;
   
   // handle disk change
-  prev_disk_cr5 <= disk_cr[5];
-  if (!prev_disk_cr5 && disk_cr[5]) begin
-    rdy_fdd <= 1'b1;
-  end
+//   prev_disk_cr5 <= disk_cr[5];
+//   if (!prev_disk_cr5 && disk_cr[5]) begin
+//     disk_changed <= 1'b1;
+//   end
   
   // handle chip reset
   if (!rst_n) begin
@@ -270,7 +271,7 @@ always @(posedge clk) begin
     end else dout[7:0] <= 8'hff;
   end else if (prev_wr_n && !wr_n && motorctl) begin
     motor_on <= din[0];
-//     if (!din[0]) rdy_fdd <= 1'b1;
+    rdy_fdd <= din[0] ? ~disk_cr[5] : 1'b1;
   end else if (prev_wr_n && !wr_n && ce && a0) begin
     if (status == STATUS_IDLE) begin // receiving command
       params_pos <= 0;
@@ -281,21 +282,14 @@ always @(posedge clk) begin
       status <= STATUS_CMD;
       ins[7:0] <= din[7:0];
       case (din[4:0])
-        READ_DATA,READ_DELETED_DATA,WRITE_DATA,WRITE_DELETED_DATA,READ_TRACK,SCAN_EQUAL,SCAN_HEQUAL,SCAN_LEQUAL:  begin
+        READ_DATA,READ_DELETED_DATA,WRITE_DATA,WRITE_DELETED_DATA,READ_TRACK,SCAN_EQUAL,SCAN_HEQUAL,SCAN_LEQUAL:
           params_len <= 8;
-          rdy_fdd <= ~disk_cr[5];
-        end
-        FORMAT_TRACK: begin
+        FORMAT_TRACK:
           params_len <= 5;
-          rdy_fdd <= ~disk_cr[5];
-        end
-        SEEK, SPECIFY:  begin
+        SEEK, SPECIFY:
           params_len <= 2;
-          rdy_fdd <= ~disk_cr[5];
-        end
         READ_ID, RECALIBRATE, SENSE_DRIVE_STATUS: begin
           if (din[4:0] == RECALIBRATE) cylinder <= 7'd0;
-          if (din[4:0] != SENSE_DRIVE_STATUS) rdy_fdd <= ~disk_cr[5];
           params_len <= 1;
         end
         SENSE_INT_STATUS: begin
