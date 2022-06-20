@@ -89,7 +89,7 @@ module memory_cpc464 (
   // Instanciamos la ROM, que de momento estará en BRAM
   rom romcpc (
     .clk(clk),
-    .a(cpu_addr[14:0]),
+    .a(cpu_addr[13:0]),
     .dout(data_from_rom)
   );
 
@@ -123,8 +123,8 @@ module memory_cpc464 (
   end
   
   // Aqui se decide qué cosa ve la CPU, si un dato de ROM o de RAM
-  wire internal_rom_bank = cpu_addr[15:14] == 2'b00 || (cpu_addr[15:14] == 2'b11 && rom_bank[7:0] != 8'h07);
-  wire external_rom_bank = (cpu_addr[15:14] == 2'b11 && rom_bank[7:0] == 8'h07);
+  wire internal_rom_bank = cpu_addr[15:14] == 2'b00;
+  wire external_rom_bank = cpu_addr[15:14] == 2'b11;
   always @* begin
     data_to_cpu = 8'hFF;
     memory_oe_n = 1'b1;
@@ -188,7 +188,7 @@ module memory_cpc464 (
 //         !host_rom_initialised ? {2'b00, romwrite_addr} :
 //         {3'b000, ram_page[3:0], cpu_addr[13:0]};
         romen_n ? {3'b000, ram_page[3:0], cpu_addr[13:0]} :
-        {3'b001, rom_bank[3:0], cpu_addr[13:0]};
+        {3'b001, rom_bank[3:0] != 4'h7 ? 4'h8 : rom_bank[3:0], cpu_addr[13:0]};
     else
       dram_addr = {5'b00000, vram_addr};
   end
@@ -202,7 +202,7 @@ module memory_cpc464 (
   end
 
   // Receive ROM from control module
-	bootloader# (.CONFIG_ON_STARTUP(1), .ROM_LOCATION(19'h5c000), .ROM_END(16'h0000)) bootloader_inst(
+	bootloader# (.CONFIG_ON_STARTUP(1), .ROM_LOCATION(19'h5c000), .ROM_END(16'h4000)) bootloader_inst(
 		.clk(clk),
 		.host_bootdata(host_bootdata),
 		.host_bootdata_ack(host_bootdata_ack),
@@ -218,11 +218,11 @@ endmodule
 
 module rom ( // ROM de 32KB, conteniendo la lower ROM y la upper ROM 0
   input wire clk,
-  input wire [14:0] a,
+  input wire [13:0] a,
   output reg [7:0] dout
   );
 
-  reg [7:0] mem[0:32767];
+  reg [7:0] mem[0:16383];
   initial begin
 //     $readmemh ("os464.hex", mem, 16'h0000, 16'h3FFF);
 //     $readmemh ("basic1-0.hex", mem, 16'h4000, 16'h7FFF);
@@ -230,7 +230,7 @@ module rom ( // ROM de 32KB, conteniendo la lower ROM y la upper ROM 0
 
 // CPC4128
     $readmemh ("os6128.hex", mem, 16'h0000, 16'h3FFF);
-    $readmemh ("basic1-1.hex", mem, 16'h4000, 16'h7FFF);
+//     $readmemh ("basic1-1.hex", mem, 16'h4000, 16'h7FFF);
 
 //  Diagnostics
 //     $readmemh ("AmstradDiagLower.rom.hex",  mem, 16'h0000, 16'h3FFF);
@@ -281,7 +281,7 @@ module ram (
 //     (reset_n == 1'b0)? 21'hZZZZZZ : addr;
     (reset_n == 1'b0)? 21'hZZZZZZ :
     !rom_initialised ? {2'b00,romwrite_addr} : 
-    romread ? {2'b00,1'b1,rom_bank[3:0],addr[13:0]} :
+    romread ? {2'b00,1'b1,rom_bank[3:0] == 4'h7 ? 4'h7 : 4'h8,addr[13:0]} :
     addr;
   
   reg [20:0] addr;

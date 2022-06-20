@@ -171,7 +171,7 @@ reg[7:0] sto = 8'h00;
 wire[7:0] pcn = cylinder;
 reg fault_fdd = 1'b0;
 
-reg rdy_fdd = 1'b1;
+reg rdy_fdd = 1'b0;
 // wire rdy_fdd = ~disk_cr[5];
 wire trk0_fdd = cylinder == 7'd0;
 reg side_fdd = 1'b0;
@@ -275,7 +275,7 @@ always @(posedge clk) begin
     end else dout[7:0] <= 8'hff;
   end else if (prev_wr_n && !wr_n && motorctl) begin
     motor_on <= din[0];
-    rdy_fdd <= din[0] ? ~disk_cr[5] : 1'b1;
+    rdy_fdd <= din[0] ? disk_cr[5] : 1'b0;
   end else if (prev_wr_n && !wr_n && ce && a0) begin
     if (status == STATUS_IDLE) begin // receiving command
       params_pos <= 0;
