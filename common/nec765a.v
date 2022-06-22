@@ -438,7 +438,7 @@ end
     1'b0, results_len[2:0],
     params_pos[3:0],
     params_len[3:0],
-    fifo_empty, 1'b0, status[1:0],
+    fifo_empty, motor_on, status[1:0],
     disk_cr[4], state[2:0]};
 
 endmodule
