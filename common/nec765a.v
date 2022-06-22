@@ -137,7 +137,7 @@ reg[7:0] params[0:10];
 reg[3:0] params_len = 0;
 reg[3:0] params_pos = 0;
 
-wire rfm = status == STATUS_IDLE || 
+wire rfm = (status == STATUS_IDLE && state != SEEKING) || 
   (status == STATUS_EXEC && state == READING && !fifo_empty) ||
   (status == STATUS_EXEC && ins[4:0] == WRITE_DATA && fifo_in_size != 512) ||
   (status == STATUS_RX && results_len != results_pos) ||
@@ -145,7 +145,7 @@ wire rfm = status == STATUS_IDLE ||
 wire dio = status == STATUS_RX || (status == STATUS_EXEC && ins[4:0] == READ_DATA);
 wire exm = status == STATUS_EXEC;
 wire busy = status != STATUS_IDLE;
-wire fdcbusy0 = 1'b0;
+wire fdcbusy0 = state == SEEKING;
 wire fdcbusy1 = 1'b0;
 
 reg[7:0] ins;
@@ -182,6 +182,7 @@ reg head = 1'b0;
 
 // TODO fake data
 reg readerror = 1'b0;
+reg became_ready = 1'b0;
 reg was_seek = 1'b0;
 reg disk_error = 1'b0;
 reg wp_error = 1'b0;
@@ -239,17 +240,19 @@ always @(posedge clk) begin
         if (ins[4:0] == SENSE_INT_STATUS) begin
           was_seek <= 1'b0;
           disk_changed <= 1'b0;
+          became_ready <= 1'b0;
         end
 
         case (results_pos)
           8'h00: dout[7:0] <= 
 //             ins[4:0] == SENSE_INT_STATUS && state == SEEKING ? {2'b00, 1'b0, 1'b0, not_ready, params[0][2:0]} :
-            ins[4:0] == SENSE_INT_STATUS && was_seek ? {1'b0, ~seek_good, seek_good, 1'b0, not_ready, params[0][2:0]} :
-            ins[4:0] == SENSE_INT_STATUS && disk_changed ? {2'b11, 1'b0, 1'b0, not_ready, params[0][2:0]} :
+            ins[4:0] == SENSE_INT_STATUS && was_seek ? {1'b0, ~seek_good, seek_good, 1'b0, not_ready, 3'd0} :
+            ins[4:0] == SENSE_INT_STATUS && became_ready ? {2'b11, 1'b0, 1'b0, not_ready, 3'd0} :
             (ins[4:0] == SENSE_INT_STATUS || ins[4:0] == INVALID_INS) ? 8'h80 :
             ins[4:0] == SENSE_DRIVE_STATUS ? 
               {fault_fdd, disk_wp[0], rdy_fdd, trk0_fdd, side_fdd, sideselect_fdd, params[0][1:0]} :
-              {1'b0, disk_error, 1'b1, 1'b0, not_ready, params[0][2:0]};
+              {1'b0, disk_error, 1'b0, 1'b0, not_ready, params[0][2:0]};
+//               {1'b0, disk_error, 1'b1, 1'b0, not_ready, params[0][2:0]};
               
           8'h01: dout[7:0] <= 
             ins[4:0] == SENSE_INT_STATUS ? pcn :
@@ -270,7 +273,7 @@ always @(posedge clk) begin
         params_len <= 0;
         results_pos <= 0;
         params_pos <= 0;
-        was_seek <= 0;
+//         was_seek <= 0;
       end
     end else dout[7:0] <= 8'hff;
   end else if (prev_wr_n && !wr_n && motorctl) begin
@@ -324,8 +327,8 @@ always @(posedge clk) begin
           status <= STATUS_IDLE;
         end else if (ins[4:0] == SEEK || ins[4:0] == RECALIBRATE) begin
           state <= SEEKING;
-          cylinder <= ins[4:0] == SEEK ? params[params_pos] : 8'd0;
-          disk_sr[15:0] <= {head, (ins[4:0] == SEEK ? params[params_pos][6:0] : 6'd0), sector_id[7:0]};
+          cylinder <= ins[4:0] == SEEK ? din[7:0] : 8'd0;
+          disk_sr[15:0] <= {head, (ins[4:0] == SEEK ? din[6:0] : 7'd0), sector_id[7:0]};
           disk_sr[16] <= 1'b0;
           disk_sr[25:24] <= drsel ? 2'b10 : 2'b01;
           status <= STATUS_IDLE;
