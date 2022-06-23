@@ -126,7 +126,6 @@ localparam STATUS_CMD = 1;
 localparam STATUS_EXEC = 2;
 localparam STATUS_RX = 3;
 
-reg fdselect = 1'b0;
 reg[1:0] status = STATUS_IDLE;
 
 // reg[7:0] results[0:7];
@@ -145,13 +144,18 @@ wire rfm = (status == STATUS_IDLE && state != SEEKING) ||
 wire dio = status == STATUS_RX || (status == STATUS_EXEC && ins[4:0] == READ_DATA);
 wire exm = status == STATUS_EXEC;
 wire busy = status != STATUS_IDLE;
-wire fdcbusy0 = state == SEEKING;
-wire fdcbusy1 = 1'b0;
+// wire fdcbusy0 = state == SEEKING && !drsel;
+// wire fdcbusy1 = state == SEEKING && drsel;
+reg fdcbusy0 = 1'b0;
+reg fdcbusy1 = 1'b0;
+
+reg[7:0] intstat0 = 8'h00;
+reg[7:0] intstat1 = 8'h00;
 
 reg[7:0] ins;
 
 // reg not_ready = 1'b0;
-wire not_ready = !disk_cr[5];
+wire not_ready = drsel ? !disk_cr[6] : !disk_cr[5];
 // wire not_ready = !(|disk_cr[31:24]);
 reg bad_cylinder = 1'b0;
 reg data_error = 1'b0;
@@ -163,17 +167,17 @@ wire no_addr_mark = recnotfound | not_ready;
 reg scan_equal_hit = 1'b0;
 reg scan_not_found = 1'b0;
 reg wrong_cylinder = 1'b0;
-reg[6:0] cylinder = 7'h00;
-reg[7:0] sector_id = 8'h00;
+reg[6:0] cylinder[0:1];
+reg[7:0] sector_id[0:1];
 reg[7:0] sector_size = 8'h02; // 512 bytes
 reg[7:0] sto = 8'h00;
 // reg[7:0] pcn = 8'h00;
-wire[7:0] pcn = cylinder;
+wire[7:0] pcn = cylinder[drsel];
 reg fault_fdd = 1'b0;
 
 reg rdy_fdd = 1'b0;
 // wire rdy_fdd = ~disk_cr[5];
-wire trk0_fdd = cylinder == 7'd0;
+wire trk0_fdd = cylinder[drsel] == 7'd0;
 reg side_fdd = 1'b0;
 reg sideselect_fdd = 1'b0;
 reg cm = 1'b0;
@@ -256,11 +260,11 @@ always @(posedge clk) begin
               
           8'h01: dout[7:0] <= 
             ins[4:0] == SENSE_INT_STATUS ? pcn :
-            {bad_cylinder, 0, data_error, 1'b0, 1'b0, no_sector, wp_error, no_addr_mark};
-          8'h02: dout[7:0] <= {0, cm, crc_error, wrong_cylinder, scan_equal_hit, scan_not_found, bad_cylinder, no_addr_mark};
-          8'h03: dout[7:0] <= cylinder;
+            {bad_cylinder, 1'b0, data_error, 1'b0, 1'b0, no_sector, wp_error, no_addr_mark};
+          8'h02: dout[7:0] <= {1'b0, cm, crc_error, wrong_cylinder, scan_equal_hit, scan_not_found, bad_cylinder, no_addr_mark};
+          8'h03: dout[7:0] <= cylinder[drsel];
           8'h04: dout[7:0] <= head;
-          8'h05: dout[7:0] <= sector_id;
+          8'h05: dout[7:0] <= sector_id[drsel];
           8'h06: dout[7:0] <= sector_size;
         endcase
       end
@@ -296,7 +300,6 @@ always @(posedge clk) begin
         SEEK, SPECIFY:
           params_len <= 2;
         READ_ID, RECALIBRATE, SENSE_DRIVE_STATUS: begin
-          if (din[4:0] == RECALIBRATE) cylinder <= 7'd0;
           params_len <= 1;
         end
         SENSE_INT_STATUS: begin
@@ -315,6 +318,9 @@ always @(posedge clk) begin
     end else if (status == STATUS_CMD) begin // receiving parameters
       params[params_pos] <= din;
       params_pos <= params_pos + 1;
+      
+      if (params_pos == 0) drsel <= din[0];
+      
       if ((params_pos + 1) == params_len) begin
         results_pos <= 0;
         status <= STATUS_RX;
@@ -325,18 +331,25 @@ always @(posedge clk) begin
           
         end else if (ins[4:0] == SPECIFY) begin
           status <= STATUS_IDLE;
-        end else if (ins[4:0] == SEEK || ins[4:0] == RECALIBRATE) begin
+        end else if (ins[4:0] == RECALIBRATE) begin
           state <= SEEKING;
-          cylinder <= ins[4:0] == SEEK ? din[7:0] : 8'd0;
-          disk_sr[15:0] <= {head, (ins[4:0] == SEEK ? din[6:0] : 7'd0), sector_id[7:0]};
+          cylinder[din[0]] <= 8'd0;
+          disk_sr[15:0] <= {head, 7'd0, sector_id[din[0]][7:0]};
+          disk_sr[16] <= 1'b0;
+          disk_sr[25:24] <= din[0] ? 2'b10 : 2'b01;
+          status <= STATUS_IDLE;
+        end else if (ins[4:0] == SEEK) begin
+          state <= SEEKING;
+          cylinder[drsel] <= din[7:0];
+          disk_sr[15:0] <= {head, din[6:0], sector_id[drsel][7:0]};
           disk_sr[16] <= 1'b0;
           disk_sr[25:24] <= drsel ? 2'b10 : 2'b01;
           status <= STATUS_IDLE;
         end else if (ins[4:0] == READ_ID) begin
           results_len <= 7;
           disk_error <= not_ready;
-          sector_id[7:0] <= disk_cr[31:24];
-          disk_sr[22] <= ~disk_sr[22]; // next id (23 is disk 1)
+          sector_id[din[0]][7:0] <= din[0] ? disk_cr[23:16] : disk_cr[31:24];
+          disk_sr[23:22] <= disk_sr[23:22] ^ (din[0] ? 2'b10 : 2'b01);
           
         end else if (ins[4:0] == WRITE_DATA) begin
           if (disk_wp[params[0][0]]) begin
@@ -347,9 +360,9 @@ always @(posedge clk) begin
             
           end else begin
             state <= STARTWRITE;
-            cylinder <= params[1];
+            cylinder[drsel] <= params[1];
             head <= params[2][0];
-            sector_id <= params[3];
+            sector_id[drsel] <= params[3];
             fifo_reset <= 1'b1;
             fifo_in_size <= 1'b0;
             status <= STATUS_EXEC;
@@ -357,9 +370,9 @@ always @(posedge clk) begin
         end else if (ins[4:0] == READ_DATA || ins[4:0] == READ_DELETED_DATA) begin
           state <= STARTREAD;
 
-          cylinder <= params[1];
+          cylinder[drsel] <= params[1];
           head <= params[2][0];
-          sector_id <= params[3];
+          sector_id[drsel] <= params[3];
           status <= STATUS_EXEC;
           
         end else begin
@@ -373,9 +386,9 @@ always @(posedge clk) begin
         if (fifo_in_size == 511) begin
           state <= COMMIT;
           if (drsel)
-            disk_sr[21:0] <= {6'b100000, head, cylinder[6:0], sector_id[7:0]};
+            disk_sr[21:0] <= {6'b100000, head, cylinder[drsel][6:0], sector_id[drsel][7:0]};
           else
-            disk_sr[21:0] <= {6'b010000, head, cylinder[6:0], sector_id[7:0]};
+            disk_sr[21:0] <= {6'b010000, head, cylinder[drsel][6:0], sector_id[drsel][7:0]};
         end
       end
     end else if (status == STATUS_RX) begin // doing something
@@ -424,9 +437,9 @@ always @(posedge clk) begin
     state <= READSECT;
     fifo_reset <= 1'b1;
     if (drsel)
-      disk_sr[21:0] <= {6'b000100, head, cylinder[6:0], sector_id[7:0]};
+      disk_sr[21:0] <= {6'b000100, head, cylinder[1][6:0], sector_id[1][7:0]};
     else
-      disk_sr[21:0] <= {6'b000010, head, cylinder[6:0], sector_id[7:0]};
+      disk_sr[21:0] <= {6'b000010, head, cylinder[0][6:0], sector_id[0][7:0]};
   end
 
 end
