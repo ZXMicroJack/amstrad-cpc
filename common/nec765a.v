@@ -14,8 +14,8 @@ module nec765 (
 	input wire disk_data_clkin,
 	input wire[1:0] disk_wp,
 	input wire rd_n,
-	input wire wr_n//,
-// 	output wire[31:0] debug
+	input wire wr_n,
+	output wire[31:0] debug
 );
 
 // FIFOS copied from WD1770 - not fully working
@@ -42,6 +42,7 @@ module nec765 (
   localparam STARTWRITE = 7;
   reg[2:0] state = IDLE;
   
+  // disk to cpu - reading
   fifo #(.RAM_SIZE(512), .ADDRESS_WIDTH(9)) fifo_in(
     .q(fifo_out_data),
     .d(disk_data_in),
@@ -54,7 +55,9 @@ module nec765 (
   reg fifo_in_write = 1'b0;
   reg[9:0] fifo_in_size = 1'b0;
   wire fifo_out_empty;
+  reg last_byte_read = 1'b0;
 
+  // cpu to disk - writing
   fifo #(.RAM_SIZE(512), .ADDRESS_WIDTH(9)) fifo_out(
     .q(disk_data_out),
     .d(din),
@@ -137,7 +140,7 @@ reg[3:0] params_len = 0;
 reg[3:0] params_pos = 0;
 
 wire rfm = (status == STATUS_IDLE && state != SEEKING) || 
-  (status == STATUS_EXEC && state == READING && !fifo_empty) ||
+  (status == STATUS_EXEC && state == READING && !last_byte_read) ||
   (status == STATUS_EXEC && ins[4:0] == WRITE_DATA && fifo_in_size != 512) ||
   (status == STATUS_RX && results_len != results_pos) ||
   (status == STATUS_CMD && params_len != params_pos);
@@ -188,10 +191,10 @@ reg was_seek = 1'b0;
 reg disk_error = 1'b0;
 reg wp_error = 1'b0;
 reg seek_good = 1'b0;
-reg disk_changed = 1'b0;
+// reg disk_changed = 1'b0;
 
 
-reg prev_disk_cr5 = 1'b0;
+// reg prev_disk_cr5 = 1'b0;
 always @(posedge clk) begin
   prev_rd_n <= rd_n;
   prev_wr_n <= wr_n;
@@ -199,12 +202,13 @@ always @(posedge clk) begin
   // fifo default values
   fifo_out_read <= 1'b0;
   fifo_in_write <= 1'b0;
+  fifo_reset <= 0;
   
   // handle disk change
-  prev_disk_cr5 <= disk_cr[5];
-  if (!prev_disk_cr5 && disk_cr[5]) begin
-    disk_changed <= 1'b1;
-  end
+//   prev_disk_cr5 <= disk_cr[5];
+//   if (!prev_disk_cr5 && disk_cr[5]) begin
+//     disk_changed <= 1'b1;
+//   end
   
   // handle chip reset
   if (!rst_n) begin
@@ -212,7 +216,7 @@ always @(posedge clk) begin
     fifo_reset <= 1;
     fifo_in_size <= 1'b0;
     state <= IDLE;
-  end else fifo_reset <= 0;
+  end
 
   if (state == READING && fifo_empty) begin
     state <= IDLE;
@@ -227,6 +231,7 @@ always @(posedge clk) begin
       if (state == READING) begin
         fifo_out_read <= 1'b1;
         dout[7:0] <= fifo_out_data[7:0];
+        last_byte_read <= fifo_empty;
 
       end else if (recnotfound) begin
         status <= STATUS_RX;
@@ -455,6 +460,7 @@ always @(posedge clk) begin
   if (state == STARTREAD) begin
     state <= READSECT;
     fifo_reset <= 1'b1;
+    last_byte_read <= 1'b0;
     if (drsel)
       disk_sr[21:0] <= {6'b000100, head, cylinder[1][6:0], sector_id[1][7:0]};
     else
@@ -464,13 +470,15 @@ always @(posedge clk) begin
 end
 
 //   assign debug[31:0] = disk_cr[31:0];
-//   assign debug[31:0] = {
-//     ins[7:0],
+  assign debug[31:0] = {
+    ins[7:0],
+    1'b0, cylinder[0][6:0],
 //     1'b0, results_pos[2:0],
 //     1'b0, results_len[2:0],
+    sector_id[0][7:0],
 //     params_pos[3:0],
 //     params_len[3:0],
-//     fifo_empty, motor_on, status[1:0],
-//     disk_cr[4], state[2:0]};
+    fifo_empty, motor_on, status[1:0],
+    disk_cr[4], state[2:0]};
 
 endmodule
