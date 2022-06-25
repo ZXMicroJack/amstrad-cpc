@@ -14,8 +14,8 @@ module nec765 (
 	input wire disk_data_clkin,
 	input wire[1:0] disk_wp,
 	input wire rd_n,
-	input wire wr_n,
-	output wire[31:0] debug
+	input wire wr_n//,
+// 	output wire[31:0] debug
 );
 
 // FIFOS copied from WD1770 - not fully working
@@ -251,8 +251,8 @@ always @(posedge clk) begin
         case (results_pos)
           8'h00: dout[7:0] <= 
 //             ins[4:0] == SENSE_INT_STATUS && state == SEEKING ? {2'b00, 1'b0, 1'b0, not_ready, params[0][2:0]} :
-            ins[4:0] == SENSE_INT_STATUS && (|intstat0) ? intstat0 :
-            ins[4:0] == SENSE_INT_STATUS && (|intstat1) ? intstat1 :
+            ins[4:0] == SENSE_INT_STATUS && (|intstat0) ? {intstat0[7:4], not_ready[0], 3'd0} :
+            ins[4:0] == SENSE_INT_STATUS && (|intstat1) ? {intstat1[7:4], not_ready[1], 3'd1} :
             (ins[4:0] == SENSE_INT_STATUS || ins[4:0] == INVALID_INS) ? 8'h80 :
             ins[4:0] == SENSE_DRIVE_STATUS && drsel ?
               {1'b0, disk_wp[1], rdy_fdd[1], cylinder[1] == 0 ? 1'b1 : 1'b0, side_fdd, sideselect_fdd, 2'b01} :
@@ -464,13 +464,13 @@ always @(posedge clk) begin
 end
 
 //   assign debug[31:0] = disk_cr[31:0];
-  assign debug[31:0] = {
-    ins[7:0],
-    1'b0, results_pos[2:0],
-    1'b0, results_len[2:0],
-    params_pos[3:0],
-    params_len[3:0],
-    fifo_empty, motor_on, status[1:0],
-    disk_cr[4], state[2:0]};
+//   assign debug[31:0] = {
+//     ins[7:0],
+//     1'b0, results_pos[2:0],
+//     1'b0, results_len[2:0],
+//     params_pos[3:0],
+//     params_len[3:0],
+//     fifo_empty, motor_on, status[1:0],
+//     disk_cr[4], state[2:0]};
 
 endmodule
