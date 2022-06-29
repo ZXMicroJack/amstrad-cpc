@@ -155,6 +155,7 @@ reg[7:0] intstat1 = 8'h00;
 reg[1:0] rdy_fdd = 2'b00;
 reg[7:0] pcn = 8'h00;
 wire not_ready[1:0] = {!disk_cr[6], !disk_cr[5]};
+reg[7:0] headpar;
 
 reg[7:0] ins;
 
@@ -271,7 +272,7 @@ always @(posedge clk) begin
             {bad_cylinder, 1'b0, data_error, 1'b0, 1'b0, recnotfound, wp_error, recnotfound};
           8'h02: dout[7:0] <= {1'b0, cm, crc_error, wrong_cylinder, scan_equal_hit, scan_not_found, bad_cylinder, recnotfound};
           8'h03: dout[7:0] <= cylinder[drsel];
-          8'h04: dout[7:0] <= head;
+          8'h04: dout[7:0] <= headpar;
           8'h05: dout[7:0] <= sector_id[drsel];
           8'h06: dout[7:0] <= sector_size;
         endcase
@@ -432,6 +433,7 @@ always @(posedge clk) begin
     disk_sr[17] <= 1'b0; // reset sector read command
     disk_sr[18] <= 1'b0; // reset sector read command
     disk_sr[16] <= 1'b1; // signal ack of ack
+    headpar[7:0] <= disk_cr[15:8];
     recnotfound <= disk_cr[3];
     if (disk_cr[3]) begin
       status <= STATUS_RX;
@@ -447,6 +449,7 @@ always @(posedge clk) begin
     disk_sr[16] <= 1'b1; // signal ack of ack
     disk_error <= disk_cr[3];
 //     seek_good <= ~disk_cr[3];
+    headpar[7:0] <= disk_cr[15:8];
     if (disk_cr[1]) begin
       fdcbusy[1] <= 1'b0;
       intstat1 <= {1'b0, disk_cr[3], ~disk_cr[3], 1'b0, 1'b0, 3'd1};//{2'b11, 1'b0, 1'b0, not_ready, 3'd0}
