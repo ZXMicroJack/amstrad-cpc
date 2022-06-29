@@ -442,12 +442,12 @@ always @(posedge clk) begin
     state <= disk_cr[3] ? IDLE : READING;
   end
   
-  if (|disk_cr[8:7] && state == SEEKING) begin // finished seek
+  if (|disk_cr[1:0] && state == SEEKING) begin // finished seek
     disk_sr[25:24] <= 2'b00; // reset seek
     disk_sr[16] <= 1'b1; // signal ack of ack
     disk_error <= disk_cr[3];
 //     seek_good <= ~disk_cr[3];
-    if (disk_cr[8]) begin
+    if (disk_cr[1]) begin
       fdcbusy[1] <= 1'b0;
       intstat1 <= {1'b0, disk_cr[3], ~disk_cr[3], 1'b0, 1'b0, 3'd1};//{2'b11, 1'b0, 1'b0, not_ready, 3'd0}
     end else begin
