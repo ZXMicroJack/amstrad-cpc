@@ -38,7 +38,7 @@ module nec765 (
   localparam WRITING = 3;
   localparam COMMIT = 4;
   localparam SEEKING = 5;
-  localparam STARTREAD = 6;
+  localparam READID = 6;
   localparam STARTWRITE = 7;
   reg[2:0] state = IDLE;
   
@@ -170,7 +170,7 @@ reg scan_equal_hit = 1'b0;
 reg scan_not_found = 1'b0;
 reg wrong_cylinder = 1'b0;
 reg[6:0] cylinder[0:1];
-reg[7:0] sector_id[0:1];
+reg[7:0] sector_id = 8'hc1;
 reg[7:0] sector_size = 8'h02; // 512 bytes
 reg[7:0] sto = 8'h00;
 // wire[7:0] pcn = cylinder[drsel];
@@ -272,8 +272,9 @@ always @(posedge clk) begin
             {bad_cylinder, 1'b0, data_error, 1'b0, 1'b0, recnotfound, wp_error, recnotfound};
           8'h02: dout[7:0] <= {1'b0, cm, crc_error, wrong_cylinder, scan_equal_hit, scan_not_found, bad_cylinder, recnotfound};
           8'h03: dout[7:0] <= cylinder[drsel];
-          8'h04: dout[7:0] <= headpar;
-          8'h05: dout[7:0] <= sector_id[drsel];
+//           8'h04: dout[7:0] <= disk_cr[15:8]; //head;
+          8'h04: dout[7:0] <= headpar[7:0];
+          8'h05: dout[7:0] <= sector_id[7:0];
           8'h06: dout[7:0] <= sector_size;
         endcase
       end
@@ -351,7 +352,7 @@ always @(posedge clk) begin
         end else if (ins[4:0] == RECALIBRATE) begin
           state <= SEEKING;
           cylinder[din[0]] <= 8'd0;
-          disk_sr[15:0] <= {head, 7'd0, sector_id[din[0]][7:0]};
+          disk_sr[15:0] <= {head, 7'd0, sector_id[7:0]};
           disk_sr[16] <= 1'b0;
           disk_sr[25:24] <= din[0] ? 2'b10 : 2'b01;
           fdcbusy[din[0]] <= 1'b1;
@@ -359,16 +360,17 @@ always @(posedge clk) begin
         end else if (ins[4:0] == SEEK) begin
           state <= SEEKING;
           cylinder[drsel] <= din[7:0];
-          disk_sr[15:0] <= {head, din[6:0], sector_id[drsel][7:0]};
+          disk_sr[15:0] <= {head, din[6:0], sector_id[7:0]};
           disk_sr[16] <= 1'b0;
           disk_sr[25:24] <= drsel ? 2'b10 : 2'b01;
           fdcbusy[drsel] <= 1'b1;
           status <= STATUS_IDLE;
         end else if (ins[4:0] == READ_ID) begin
           results_len <= 7;
-          disk_error <= not_ready[din[0]];
-          sector_id[din[0]][7:0] <= din[0] ? disk_cr[23:16] : disk_cr[31:24];
-          disk_sr[23:22] <= disk_sr[23:22] ^ (din[0] ? 2'b10 : 2'b01);
+          state <= READID;
+          disk_sr[23:22] <= din[0] ? 2'b10 : 2'b01;
+          status <= STATUS_EXEC;
+          results_len <= 7;
           
         end else if (ins[4:0] == WRITE_DATA) begin
           if (disk_wp[drsel]) begin
@@ -381,18 +383,22 @@ always @(posedge clk) begin
             state <= STARTWRITE;
             cylinder[drsel] <= params[1];
             head <= params[2][0];
-            sector_id[drsel] <= params[3];
+            sector_id <= params[3];
             fifo_reset <= 1'b1;
             fifo_in_size <= 1'b0;
             status <= STATUS_EXEC;
           end
         end else if (ins[4:0] == READ_DATA || ins[4:0] == READ_DELETED_DATA) begin
-          state <= STARTREAD;
+          fifo_reset <= 1'b1;
+          last_byte_read <= 1'b0;
+          state <= READSECT;
+          disk_sr[21:0] <= {6'b000, drsel, ~drsel, 1'b0, head, params[1][6:0], params[3][7:0]};
 
           cylinder[drsel] <= params[1];
           head <= params[2][0];
-          sector_id[drsel] <= params[3];
+          sector_id <= params[3];
           status <= STATUS_EXEC;
+          results_len <= 7;
           
         end else begin
           results_len <= 7;
@@ -405,9 +411,9 @@ always @(posedge clk) begin
         if (fifo_in_size == 511) begin
           state <= COMMIT;
           if (drsel)
-            disk_sr[21:0] <= {6'b100000, head, cylinder[drsel][6:0], sector_id[drsel][7:0]};
+            disk_sr[21:0] <= {6'b100000, head, cylinder[drsel][6:0], sector_id[7:0]};
           else
-            disk_sr[21:0] <= {6'b010000, head, cylinder[drsel][6:0], sector_id[drsel][7:0]};
+            disk_sr[21:0] <= {6'b010000, head, cylinder[drsel][6:0], sector_id[7:0]};
         end
       end
     end else if (status == STATUS_RX) begin // doing something
@@ -428,6 +434,16 @@ always @(posedge clk) begin
     results_len <= 7;
     disk_error <= disk_cr[3];
   end
+  
+  if (disk_cr[4] && state == READID) begin
+    disk_sr[23:22] <= 2'b00; // reset command
+    disk_sr[16] <= 1'b1; // signal ack of ack
+    disk_error <= disk_cr[3];
+//     sector_id[params[0][0]][7:0] <= disk_cr[31:24];
+    sector_id[7:0] <= disk_cr[31:24];
+    headpar[7:0] <= disk_cr[15:8];
+    status <= STATUS_RX;
+  end
 
   if (disk_cr[4] && state == READSECT) begin // finished command
     disk_sr[17] <= 1'b0; // reset sector read command
@@ -437,7 +453,7 @@ always @(posedge clk) begin
     recnotfound <= disk_cr[3];
     if (disk_cr[3]) begin
       status <= STATUS_RX;
-      results_len <= 7;
+//       results_len <= 7;
       disk_error <= 1'b1;
     end
 
@@ -460,16 +476,6 @@ always @(posedge clk) begin
     state <= IDLE;
   end
 
-  if (state == STARTREAD) begin
-    state <= READSECT;
-    fifo_reset <= 1'b1;
-    last_byte_read <= 1'b0;
-    if (drsel)
-      disk_sr[21:0] <= {6'b000100, head, cylinder[1][6:0], sector_id[1][7:0]};
-    else
-      disk_sr[21:0] <= {6'b000010, head, cylinder[0][6:0], sector_id[0][7:0]};
-  end
-
 end
 
 //   assign debug[31:0] = disk_cr[31:0];
@@ -478,7 +484,7 @@ end
     1'b0, cylinder[0][6:0],
 //     1'b0, results_pos[2:0],
 //     1'b0, results_len[2:0],
-    sector_id[0][7:0],
+    sector_id[7:0],
 //     params_pos[3:0],
 //     params_len[3:0],
     fifo_empty, motor_on, status[1:0],
