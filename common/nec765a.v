@@ -180,6 +180,26 @@ reg disk_error = 1'b0;
 reg wp_error = 1'b0;
 reg seek_good = 1'b0;
 
+
+wire[7:0] param_out = 
+  results_pos == 8'h00 ?
+          (ins[4:0] == SENSE_INT_STATUS && (|intstat0) ? {intstat0[7:4], not_ready[0], 3'd0} :
+            ins[4:0] == SENSE_INT_STATUS && (|intstat1) ? {intstat1[7:4], not_ready[1], 3'd1} :
+            (ins[4:0] == SENSE_INT_STATUS || ins[4:0] == INVALID_INS) ? 8'h80 :
+            ins[4:0] == SENSE_DRIVE_STATUS && drsel ?
+            {1'b0, disk_wp[1], rdy_fdd[1], cylinder[1] == 0 ? 1'b1 : 1'b0, side_fdd, sideselect_fdd, 2'b01} :
+            ins[4:0] == SENSE_DRIVE_STATUS ?
+            {1'b0, disk_wp[0], rdy_fdd[0], cylinder[0] == 0 ? 1'b1 : 1'b0, side_fdd, sideselect_fdd, 2'b00} :
+            {1'b0, disk_error, 1'b0, 1'b0, not_ready[drsel], 2'b00, drsel}) :
+  results_pos == 8'h01 ?
+          (ins[4:0] == SENSE_INT_STATUS ? cylinder[drsel] :
+            {bad_cylinder, 1'b0, data_error, 1'b0, 1'b0, recnotfound, wp_error, recnotfound}) :
+  results_pos == 8'h02 ? {1'b0, cm, crc_error, wrong_cylinder, scan_equal_hit, scan_not_found, bad_cylinder, recnotfound} :
+  results_pos == 8'h03 ? cylinder[drsel] :
+  results_pos == 8'h04 ? head :
+  results_pos == 8'h05 ? sector_id : sector_size;
+
+
 always @(posedge clk) begin
   prev_rd_n <= rd_n;
   prev_wr_n <= wr_n;
@@ -202,7 +222,7 @@ always @(posedge clk) begin
     status <= STATUS_RX;
     results_len <= 7;
   end
-
+  
   if (prev_rd_n && !rd_n && ce) begin
     if (!a0) begin
       dout[7:0] <= {rfm, dio, exm, busy, 2'b00, fdcbusy[1:0]};
@@ -221,36 +241,38 @@ always @(posedge clk) begin
     end else if (status == STATUS_RX) begin
       if (results_pos == results_len) dout[7:0] <= 8'hff;
       else begin
-        if (ins[4:0] == SENSE_INT_STATUS) begin
+        if (ins[4:0] == SENSE_INT_STATUS && results_pos == 1) begin
           if (|intstat0) begin 
             intstat0[7:0] <= 8'h00;
-            pcn[7:0] <= cylinder[0];
+//             pcn[7:0] <= cylinder[0];
           end else if (|intstat1) begin
             intstat1[7:0] <= 8'h00;
-            pcn[7:0] <= cylinder[1];
+//             pcn[7:0] <= cylinder[1];
           end
         end
+        
+        dout[7:0] <= param_out[7:0];
 
-        case (results_pos)
-          8'h00: dout[7:0] <= 
-            ins[4:0] == SENSE_INT_STATUS && (|intstat0) ? {intstat0[7:4], not_ready[0], 3'd0} :
-            ins[4:0] == SENSE_INT_STATUS && (|intstat1) ? {intstat1[7:4], not_ready[1], 3'd1} :
-            (ins[4:0] == SENSE_INT_STATUS || ins[4:0] == INVALID_INS) ? 8'h80 :
-            ins[4:0] == SENSE_DRIVE_STATUS && drsel ?
-              {1'b0, disk_wp[1], rdy_fdd[1], cylinder[1] == 0 ? 1'b1 : 1'b0, side_fdd, sideselect_fdd, 2'b01} :
-            ins[4:0] == SENSE_DRIVE_STATUS ?
-              {1'b0, disk_wp[0], rdy_fdd[0], cylinder[0] == 0 ? 1'b1 : 1'b0, side_fdd, sideselect_fdd, 2'b00} :
-              {1'b0, disk_error, 1'b0, 1'b0, not_ready[drsel], 2'b00, drsel};
-              
-          8'h01: dout[7:0] <= 
-            ins[4:0] == SENSE_INT_STATUS ? pcn :
-            {bad_cylinder, 1'b0, data_error, 1'b0, 1'b0, recnotfound, wp_error, recnotfound};
-          8'h02: dout[7:0] <= {1'b0, cm, crc_error, wrong_cylinder, scan_equal_hit, scan_not_found, bad_cylinder, recnotfound};
-          8'h03: dout[7:0] <= cylinder[drsel];
-          8'h04: dout[7:0] <= disk_cr[15:8];
-          8'h05: dout[7:0] <= sector_id[7:0];
-          8'h06: dout[7:0] <= sector_size;
-        endcase
+//         case (results_pos)
+//           8'h00: dout[7:0] <= 
+//             ins[4:0] == SENSE_INT_STATUS && (|intstat0) ? {intstat0[7:4], not_ready[0], 3'd0} :
+//             ins[4:0] == SENSE_INT_STATUS && (|intstat1) ? {intstat1[7:4], not_ready[1], 3'd1} :
+//             (ins[4:0] == SENSE_INT_STATUS || ins[4:0] == INVALID_INS) ? 8'h80 :
+//             ins[4:0] == SENSE_DRIVE_STATUS && drsel ?
+//               {1'b0, disk_wp[1], rdy_fdd[1], cylinder[1] == 0 ? 1'b1 : 1'b0, side_fdd, sideselect_fdd, 2'b01} :
+//             ins[4:0] == SENSE_DRIVE_STATUS ?
+//               {1'b0, disk_wp[0], rdy_fdd[0], cylinder[0] == 0 ? 1'b1 : 1'b0, side_fdd, sideselect_fdd, 2'b00} :
+//               {1'b0, disk_error, 1'b0, 1'b0, not_ready[drsel], 2'b00, drsel};
+//               
+//           8'h01: dout[7:0] <= 
+//             ins[4:0] == SENSE_INT_STATUS ? pcn :
+//             {bad_cylinder, 1'b0, data_error, 1'b0, 1'b0, recnotfound, wp_error, recnotfound};
+//           8'h02: dout[7:0] <= {1'b0, cm, crc_error, wrong_cylinder, scan_equal_hit, scan_not_found, bad_cylinder, recnotfound};
+//           8'h03: dout[7:0] <= cylinder[drsel];
+//           8'h04: dout[7:0] <= disk_cr[15:8];
+//           8'h05: dout[7:0] <= sector_id[7:0];
+//           8'h06: dout[7:0] <= sector_size;
+//         endcase
       end
         
       if ((results_pos + 1) != results_len)
