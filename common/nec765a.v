@@ -1,7 +1,7 @@
 module nec765 (
   input wire clk,
   input wire rst_n,
-  output reg[7:0] dout,
+  output wire[7:0] dout,
   input wire[7:0] din,
   input wire ce,
   input wire a0,
@@ -140,7 +140,7 @@ reg[3:0] params_len = 0;
 reg[3:0] params_pos = 0;
 
 wire rfm = (status == STATUS_IDLE && state != SEEKING) || 
-  (status == STATUS_EXEC && state == READING && !last_byte_read) ||
+  (status == STATUS_EXEC && state == READING && !fifo_empty) ||
   (status == STATUS_EXEC && ins[4:0] == WRITE_DATA && fifo_in_size != 512) ||
   (status == STATUS_RX && results_len != results_pos) ||
   (status == STATUS_CMD && params_len != params_pos);
@@ -151,7 +151,6 @@ reg[1:0] fdcbusy = 2'b00;
 reg[7:0] intstat0 = 8'h00;
 reg[7:0] intstat1 = 8'h00;
 reg[1:0] rdy_fdd = 2'b00;
-reg[7:0] pcn = 8'h00;
 wire not_ready[1:0] = {!disk_cr[6], !disk_cr[5]};
 
 reg[7:0] ins;
@@ -180,6 +179,7 @@ reg disk_error = 1'b0;
 reg wp_error = 1'b0;
 reg seek_good = 1'b0;
 
+wire[7:0] status_reg = {rfm, dio, exm, busy, 2'b00, fdcbusy[1:0]};
 
 wire[7:0] param_out = 
   results_pos == 8'h00 ?
@@ -196,9 +196,19 @@ wire[7:0] param_out =
             {bad_cylinder, 1'b0, data_error, 1'b0, 1'b0, recnotfound, wp_error, recnotfound}) :
   results_pos == 8'h02 ? {1'b0, cm, crc_error, wrong_cylinder, scan_equal_hit, scan_not_found, bad_cylinder, recnotfound} :
   results_pos == 8'h03 ? cylinder[drsel] :
-  results_pos == 8'h04 ? head :
+  results_pos == 8'h04 ? disk_cr[15:8] :
   results_pos == 8'h05 ? sector_id : sector_size;
 
+assign dout = 
+  !ce ? 8'hff :
+  !rd_n && !a0 ? status_reg :
+  !rd_n && a0 && status == STATUS_EXEC && state == READING ? fifo_out_data :
+  !rd_n && a0 && status == STATUS_RX ? param_out :
+  8'hff;
+  
+
+reg was_fifo_read = 1'b0;
+reg was_param_read = 1'b0;
 
 always @(posedge clk) begin
   prev_rd_n <= rd_n;
@@ -215,6 +225,7 @@ always @(posedge clk) begin
     fifo_reset <= 1;
     fifo_in_size <= 1'b0;
     state <= IDLE;
+    status <= STATUS_IDLE;
   end
 
   if (state == READING && fifo_empty) begin
@@ -223,58 +234,13 @@ always @(posedge clk) begin
     results_len <= 7;
   end
   
-  if (prev_rd_n && !rd_n && ce) begin
-    if (!a0) begin
-      dout[7:0] <= {rfm, dio, exm, busy, 2'b00, fdcbusy[1:0]};
-    end else if (status == STATUS_EXEC) begin
-      if (state == READING) begin
-        fifo_out_read <= 1'b1;
-        dout[7:0] <= fifo_out_data[7:0];
-        last_byte_read <= fifo_empty;
-
-      end else if (recnotfound) begin
-        status <= STATUS_RX;
-        disk_error <= 1'b1;
-        results_len <= 7;
-       end
-
-    end else if (status == STATUS_RX) begin
-      if (results_pos == results_len) dout[7:0] <= 8'hff;
-      else begin
-        if (ins[4:0] == SENSE_INT_STATUS && results_pos == 1) begin
-          if (|intstat0) begin 
-            intstat0[7:0] <= 8'h00;
-//             pcn[7:0] <= cylinder[0];
-          end else if (|intstat1) begin
-            intstat1[7:0] <= 8'h00;
-//             pcn[7:0] <= cylinder[1];
-          end
-        end
-        
-        dout[7:0] <= param_out[7:0];
-
-//         case (results_pos)
-//           8'h00: dout[7:0] <= 
-//             ins[4:0] == SENSE_INT_STATUS && (|intstat0) ? {intstat0[7:4], not_ready[0], 3'd0} :
-//             ins[4:0] == SENSE_INT_STATUS && (|intstat1) ? {intstat1[7:4], not_ready[1], 3'd1} :
-//             (ins[4:0] == SENSE_INT_STATUS || ins[4:0] == INVALID_INS) ? 8'h80 :
-//             ins[4:0] == SENSE_DRIVE_STATUS && drsel ?
-//               {1'b0, disk_wp[1], rdy_fdd[1], cylinder[1] == 0 ? 1'b1 : 1'b0, side_fdd, sideselect_fdd, 2'b01} :
-//             ins[4:0] == SENSE_DRIVE_STATUS ?
-//               {1'b0, disk_wp[0], rdy_fdd[0], cylinder[0] == 0 ? 1'b1 : 1'b0, side_fdd, sideselect_fdd, 2'b00} :
-//               {1'b0, disk_error, 1'b0, 1'b0, not_ready[drsel], 2'b00, drsel};
-//               
-//           8'h01: dout[7:0] <= 
-//             ins[4:0] == SENSE_INT_STATUS ? pcn :
-//             {bad_cylinder, 1'b0, data_error, 1'b0, 1'b0, recnotfound, wp_error, recnotfound};
-//           8'h02: dout[7:0] <= {1'b0, cm, crc_error, wrong_cylinder, scan_equal_hit, scan_not_found, bad_cylinder, recnotfound};
-//           8'h03: dout[7:0] <= cylinder[drsel];
-//           8'h04: dout[7:0] <= disk_cr[15:8];
-//           8'h05: dout[7:0] <= sector_id[7:0];
-//           8'h06: dout[7:0] <= sector_size;
-//         endcase
-      end
-        
+  // finished this cycle - advance fifo
+  if (!prev_rd_n && rd_n) begin
+    if (was_fifo_read) begin
+      fifo_out_read <= 1'b1;
+      was_fifo_read <= 1'b0;
+    end else if (was_param_read) begin
+      was_param_read <= 1'b0;
       if ((results_pos + 1) != results_len)
         results_pos <= results_pos + 1;
       else begin
@@ -283,9 +249,22 @@ always @(posedge clk) begin
         params_len <= 0;
         results_pos <= 0;
         params_pos <= 0;
+        
+        if (ins[4:0] == SENSE_INT_STATUS) begin
+          if (|intstat0) intstat0[7:0] <= 8'h00;
+          else if (|intstat1) intstat1[7:0] <= 8'h00;
+        end
       end
-    end else dout[7:0] <= 8'hff;
-  end else if (prev_wr_n && !wr_n && motorctl) begin
+    end
+  end
+
+  // was a fifo read this cycle
+  if (prev_rd_n && !rd_n && ce && a0) begin
+    was_fifo_read <= status == STATUS_EXEC && state == READING;
+    was_param_read <= status == STATUS_RX;
+  end
+  
+  if (prev_wr_n && !wr_n && motorctl) begin
     motor_on <= din[0];
 
   end else if (prev_wr_n && !wr_n && ce && a0) begin
