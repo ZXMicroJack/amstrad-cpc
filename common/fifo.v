@@ -8,7 +8,8 @@ module fifo#(parameter RAM_SIZE = 256, parameter ADDRESS_WIDTH = 8, parameter WO
   input wire read,
   input wire reset,
   output wire empty,
-  output wire full);
+  output wire full,
+  output wire lastbyte);
 
   reg[WORD_SIZE-1:0] mem [0:RAM_SIZE-1] /* synthesis ramstyle = "M144K" */;
   reg[ADDRESS_WIDTH-1:0] raddr = 0;
@@ -40,6 +41,7 @@ module fifo#(parameter RAM_SIZE = 256, parameter ADDRESS_WIDTH = 8, parameter WO
 
   // assign empty = raddr == waddr;
   assign empty = size == 0;
+  assign lastbyte = size == 1;
   assign q = mem[raddr];
   assign full = size == RAM_SIZE;
 endmodule

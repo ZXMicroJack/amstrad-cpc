@@ -21,6 +21,7 @@ module nec765 (
 // FIFOS copied from WD1770 - not fully working
   wire[7:0] fifo_out_data;
   wire fifo_empty;
+  wire fifo_lastbyte;
   reg fifo_reset = 1'b0;
   reg fifo_out_read = 1'b0;
   reg side_latched = 1'b0;
@@ -50,7 +51,8 @@ module nec765 (
     .write(disk_data_clkin),
     .read(fifo_out_read),
     .reset(fifo_reset),
-    .empty(fifo_empty));
+    .empty(fifo_empty),
+    .lastbyte(fifo_lastbyte));
 
   reg fifo_in_write = 1'b0;
   reg[9:0] fifo_in_size = 1'b0;
@@ -197,7 +199,7 @@ wire[7:0] param_out =
   results_pos == 8'h02 ? {1'b0, cm, crc_error, wrong_cylinder, scan_equal_hit, scan_not_found, bad_cylinder, recnotfound} :
   results_pos == 8'h03 ? cylinder[drsel] :
   results_pos == 8'h04 ? disk_cr[15:8] :
-  results_pos == 8'h05 ? sector_id : sector_size;
+  results_pos == 8'h05 ? disk_cr[31:24] : sector_size;
 
 assign dout = 
   !ce ? 8'hff :
@@ -228,27 +230,25 @@ always @(posedge clk) begin
     status <= STATUS_IDLE;
   end
 
-  if (state == READING && fifo_empty) begin
-    state <= IDLE;
-    status <= STATUS_RX;
-    results_len <= 7;
-  end
-  
   // finished this cycle - advance fifo
   if (!prev_rd_n && rd_n) begin
     if (was_fifo_read) begin
       fifo_out_read <= 1'b1;
       was_fifo_read <= 1'b0;
+      if (fifo_lastbyte) begin
+        state <= IDLE;
+        status <= STATUS_RX;
+      end
     end else if (was_param_read) begin
       was_param_read <= 1'b0;
       if ((results_pos + 1) != results_len)
         results_pos <= results_pos + 1;
       else begin
         status <= STATUS_IDLE;
-        results_len <= 0;
-        params_len <= 0;
-        results_pos <= 0;
-        params_pos <= 0;
+//         results_len <= 0;
+//         params_len <= 0;
+//         results_pos <= 0;
+//         params_pos <= 0;
         
         if (ins[4:0] == SENSE_INT_STATUS) begin
           if (|intstat0) intstat0[7:0] <= 8'h00;
