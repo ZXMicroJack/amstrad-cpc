@@ -198,7 +198,8 @@ wire[7:0] param_out =
             {bad_cylinder, 1'b0, data_error, 1'b0, 1'b0, recnotfound, wp_error, recnotfound}) :
   results_pos == 8'h02 ? {1'b0, cm, crc_error, wrong_cylinder, scan_equal_hit, scan_not_found, bad_cylinder, recnotfound} :
   results_pos == 8'h03 ? cylinder[drsel] :
-  results_pos == 8'h04 ? disk_cr[15:8] :
+  results_pos == 8'h04 ? head :
+//   results_pos == 8'h04 ? disk_cr[15:8] :
   results_pos == 8'h05 ? disk_cr[31:24] : sector_size;
 
 assign dout = 
@@ -268,12 +269,14 @@ always @(posedge clk) begin
     motor_on <= din[0];
 
   end else if (prev_wr_n && !wr_n && ce && a0) begin
+    // STATE: IDLE - receive instruction
     if (status == STATUS_IDLE) begin // receiving command
       params_pos <= 0;
       recnotfound <= 1'b0;
       disk_error <= 1'b0;
       wp_error <= 1'b0;
 
+      // move to cmd state
       status <= STATUS_CMD;
       ins[7:0] <= din[7:0];
       case (din[4:0])
@@ -389,7 +392,7 @@ always @(posedge clk) begin
     end
   end
   
-    // has finished reading/writing sector, reset read command
+  // has finished writing sector
   if (disk_cr[4] && state == COMMIT) begin // finished command
     disk_sr[21:20] <= 2'b00; // reset sector write command
     disk_sr[16] <= 1'b1; // signal ack of ack
@@ -399,6 +402,7 @@ always @(posedge clk) begin
     disk_error <= disk_cr[3];
   end
   
+  // has finished reading sector id
   if (disk_cr[4] && state == READID) begin
     disk_sr[23:22] <= 2'b00; // reset command
     disk_sr[16] <= 1'b1; // signal ack of ack
@@ -407,6 +411,7 @@ always @(posedge clk) begin
     status <= STATUS_RX;
   end
 
+  // has finished reading sector
   if (disk_cr[4] && state == READSECT) begin // finished command
     disk_sr[18:17] <= 2'b00; // reset sector read command
     disk_sr[16] <= 1'b1; // signal ack of ack
@@ -419,6 +424,7 @@ always @(posedge clk) begin
     state <= disk_cr[3] ? IDLE : READING;
   end
   
+  // has finished seeking
   if (|disk_cr[1:0] && state == SEEKING) begin // finished seek
     disk_sr[25:24] <= 2'b00; // reset seek
     disk_sr[16] <= 1'b1; // signal ack of ack
