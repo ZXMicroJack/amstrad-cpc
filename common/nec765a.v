@@ -173,7 +173,7 @@ reg side_fdd = 1'b0;
 reg sideselect_fdd = 1'b0;
 reg cm = 1'b0;
 reg crc_error = 1'b0;
-reg head = 1'b0;
+reg[7:0] head = 8'd0;
 
 // TODO fake data
 reg readerror = 1'b0;
@@ -183,7 +183,7 @@ reg seek_good = 1'b0;
 
 wire[7:0] status_reg = {rfm, dio, exm, busy, 2'b00, fdcbusy[1:0]};
 
-wire[7:0] param_out = 
+wire[7:0] param_out2 = 
   results_pos == 8'h00 ?
           (ins[4:0] == SENSE_INT_STATUS && (|intstat0) ? {intstat0[7:4], not_ready[0], 3'd0} :
             ins[4:0] == SENSE_INT_STATUS && (|intstat1) ? {intstat1[7:4], not_ready[1], 3'd1} :
@@ -198,15 +198,19 @@ wire[7:0] param_out =
             {bad_cylinder, 1'b0, data_error, 1'b0, 1'b0, recnotfound, wp_error, recnotfound}) :
   results_pos == 8'h02 ? {1'b0, cm, crc_error, wrong_cylinder, scan_equal_hit, scan_not_found, bad_cylinder, recnotfound} :
   results_pos == 8'h03 ? cylinder[drsel] :
-  results_pos == 8'h04 ? head :
-//   results_pos == 8'h04 ? disk_cr[15:8] :
+//   results_pos == 8'h04 ? 8'h00 : // works
+//   results_pos == 8'h04 ? head : // no
+//   results_pos == 8'h04 ? head[0] : // no
+  results_pos == 8'h04 ? disk_cr[15:8] : // no
   results_pos == 8'h05 ? disk_cr[31:24] : sector_size;
 
+reg[7:0] param_out[0:6];
+  
 assign dout = 
   !ce ? 8'hff :
   !rd_n && !a0 ? status_reg :
   !rd_n && a0 && status == STATUS_EXEC && state == READING ? fifo_out_data :
-  !rd_n && a0 && status == STATUS_RX ? param_out :
+  !rd_n && a0 && status == STATUS_RX ? param_out[results_pos] :
   8'hff;
   
 
@@ -291,7 +295,20 @@ always @(posedge clk) begin
         end
         SENSE_INT_STATUS: begin
           params_len <= 0;
-          results_len <= (|{intstat0, intstat1}) ? 2 : 1;
+          if (|intstat0) begin
+            param_out[0] <= {intstat0[7:4], not_ready[0], 3'd0};
+            param_out[1] <= cylinder[0];
+            intstat0[7:0] <= 8'd0;
+            results_len <= 2;
+          end else if (|intstat1) begin
+            param_out[0] <= {intstat1[7:4], not_ready[1], 3'd1};
+            param_out[1] <= cylinder[1];
+            intstat1[7:0] <= 8'd0;
+            results_len <= 2;
+          end else begin
+            param_out[0] <= 8'h80;
+            results_len <= 1;
+          end
           status <= STATUS_RX;
         end
         default: begin
@@ -319,6 +336,9 @@ always @(posedge clk) begin
         status <= STATUS_RX;
 
         if (ins[4:0] == SENSE_DRIVE_STATUS) begin
+          param_out[0] <= drsel ? 
+            {1'b0, disk_wp[1], rdy_fdd[1], cylinder[1] == 0 ? 1'b1 : 1'b0, side_fdd, sideselect_fdd, 2'b01} :
+            {1'b0, disk_wp[0], rdy_fdd[0], cylinder[0] == 0 ? 1'b1 : 1'b0, side_fdd, sideselect_fdd, 2'b00};
           results_len <= 1;
           
         end else if (ins[4:0] == SPECIFY) begin
@@ -326,7 +346,7 @@ always @(posedge clk) begin
         end else if (ins[4:0] == RECALIBRATE) begin
           state <= SEEKING;
           cylinder[din[0]] <= 8'd0;
-          disk_sr[15:0] <= {head, 7'd0, sector_id[7:0]};
+          disk_sr[15:0] <= {head[0], 7'd0, sector_id[7:0]};
           disk_sr[16] <= 1'b0;
           disk_sr[25:24] <= din[0] ? 2'b10 : 2'b01;
           fdcbusy[din[0]] <= 1'b1;
@@ -334,7 +354,7 @@ always @(posedge clk) begin
         end else if (ins[4:0] == SEEK) begin
           state <= SEEKING;
           cylinder[drsel] <= din[7:0];
-          disk_sr[15:0] <= {head, din[6:0], sector_id[7:0]};
+          disk_sr[15:0] <= {head[0], din[6:0], sector_id[7:0]};
           disk_sr[16] <= 1'b0;
           disk_sr[25:24] <= drsel ? 2'b10 : 2'b01;
           fdcbusy[drsel] <= 1'b1;
@@ -355,7 +375,7 @@ always @(posedge clk) begin
           end else begin
             state <= STARTWRITE;
             cylinder[drsel] <= params[1];
-            head <= params[2][0];
+            head[0] <= params[2][0];
             sector_id <= params[3];
             fifo_reset <= 1'b1;
             fifo_in_size <= 1'b0;
@@ -365,10 +385,10 @@ always @(posedge clk) begin
           fifo_reset <= 1'b1;
           last_byte_read <= 1'b0;
           state <= READSECT;
-          disk_sr[21:0] <= {6'b000, drsel, ~drsel, 1'b0, head, params[1][6:0], params[3][7:0]};
+          disk_sr[21:0] <= {6'b000, drsel, ~drsel, 1'b0, head[0], params[1][6:0], params[3][7:0]};
 
           cylinder[drsel] <= params[1];
-          head <= params[2][0];
+          head[0] <= params[2][0];
           sector_id <= params[3];
           status <= STATUS_EXEC;
           results_len <= 7;
@@ -384,12 +404,23 @@ always @(posedge clk) begin
         if (fifo_in_size == 511) begin
           state <= COMMIT;
           if (drsel)
-            disk_sr[21:0] <= {6'b100000, head, cylinder[drsel][6:0], sector_id[7:0]};
+            disk_sr[21:0] <= {6'b100000, head[0], cylinder[drsel][6:0], sector_id[7:0]};
           else
-            disk_sr[21:0] <= {6'b010000, head, cylinder[drsel][6:0], sector_id[7:0]};
+            disk_sr[21:0] <= {6'b010000, head[0], cylinder[drsel][6:0], sector_id[7:0]};
         end
       end
     end
+  end
+
+  // write results in
+  if (disk_cr[4] && state != IDLE) begin
+    param_out[0] <= {1'b0, disk_error, 1'b0, 1'b0, not_ready[drsel], 2'b00, drsel};
+    param_out[1] <= {bad_cylinder, 1'b0, disk_cr[3], 1'b0, 1'b0, disk_cr[3], wp_error, disk_cr[3]};
+    param_out[2] <= {1'b0, cm, crc_error, wrong_cylinder, scan_equal_hit, scan_not_found, bad_cylinder, disk_cr[3]};
+    param_out[3] <= cylinder[drsel];
+    param_out[4] <= disk_cr[15:8];
+    param_out[5] <= disk_cr[31:24];
+    param_out[6] <= sector_size;
   end
   
   // has finished writing sector
