@@ -250,15 +250,16 @@ always @(posedge clk) begin
         results_pos <= results_pos + 1;
       else begin
         status <= STATUS_IDLE;
+        results_pos <= 0;
 //         results_len <= 0;
 //         params_len <= 0;
 //         results_pos <= 0;
 //         params_pos <= 0;
         
-        if (ins[4:0] == SENSE_INT_STATUS) begin
-          if (|intstat0) intstat0[7:0] <= 8'h00;
-          else if (|intstat1) intstat1[7:0] <= 8'h00;
-        end
+//         if (ins[4:0] == SENSE_INT_STATUS) begin
+//           if (|intstat0) intstat0[7:0] <= 8'h00;
+//           else if (|intstat1) intstat1[7:0] <= 8'h00;
+//         end
       end
     end
   end
