@@ -28,7 +28,6 @@ module nec765 (
   wire fifo_in_full;
 
 //wd1770 regs
-  reg recnotfound = 0;
   reg drsel = 0;
   reg motor_on = 1'b0;
 
@@ -176,34 +175,11 @@ reg crc_error = 1'b0;
 reg[7:0] head = 8'd0;
 
 // TODO fake data
-reg readerror = 1'b0;
-reg disk_error = 1'b0;
+// reg disk_error = 1'b0;
 reg wp_error = 1'b0;
 reg seek_good = 1'b0;
 
 wire[7:0] status_reg = {rfm, dio, exm, busy, 2'b00, fdcbusy[1:0]};
-
-wire[7:0] param_out2 = 
-  results_pos == 8'h00 ?
-          (ins[4:0] == SENSE_INT_STATUS && (|intstat0) ? {intstat0[7:4], not_ready[0], 3'd0} :
-            ins[4:0] == SENSE_INT_STATUS && (|intstat1) ? {intstat1[7:4], not_ready[1], 3'd1} :
-            (ins[4:0] == SENSE_INT_STATUS || ins[4:0] == INVALID_INS) ? 8'h80 :
-            ins[4:0] == SENSE_DRIVE_STATUS && drsel ?
-            {1'b0, disk_wp[1], rdy_fdd[1], cylinder[1] == 0 ? 1'b1 : 1'b0, side_fdd, sideselect_fdd, 2'b01} :
-            ins[4:0] == SENSE_DRIVE_STATUS ?
-            {1'b0, disk_wp[0], rdy_fdd[0], cylinder[0] == 0 ? 1'b1 : 1'b0, side_fdd, sideselect_fdd, 2'b00} :
-            {1'b0, disk_error, 1'b0, 1'b0, not_ready[drsel], 2'b00, drsel}) :
-  results_pos == 8'h01 ?
-          (ins[4:0] == SENSE_INT_STATUS ? cylinder[drsel] :
-            {bad_cylinder, 1'b0, data_error, 1'b0, 1'b0, recnotfound, wp_error, recnotfound}) :
-  results_pos == 8'h02 ? {1'b0, cm, crc_error, wrong_cylinder, scan_equal_hit, scan_not_found, bad_cylinder, recnotfound} :
-  results_pos == 8'h03 ? cylinder[drsel] :
-//   results_pos == 8'h04 ? 8'h00 : // works
-//   results_pos == 8'h04 ? head : // no
-//   results_pos == 8'h04 ? head[0] : // no
-  results_pos == 8'h04 ? disk_cr[15:8] : // no
-  results_pos == 8'h05 ? disk_cr[31:24] : sector_size;
-
 reg[7:0] param_out[0:6];
   
 assign dout = 
@@ -251,15 +227,6 @@ always @(posedge clk) begin
       else begin
         status <= STATUS_IDLE;
         results_pos <= 0;
-//         results_len <= 0;
-//         params_len <= 0;
-//         results_pos <= 0;
-//         params_pos <= 0;
-        
-//         if (ins[4:0] == SENSE_INT_STATUS) begin
-//           if (|intstat0) intstat0[7:0] <= 8'h00;
-//           else if (|intstat1) intstat1[7:0] <= 8'h00;
-//         end
       end
     end
   end
@@ -277,9 +244,6 @@ always @(posedge clk) begin
     // STATE: IDLE - receive instruction
     if (status == STATUS_IDLE) begin // receiving command
       params_pos <= 0;
-      recnotfound <= 1'b0;
-      disk_error <= 1'b0;
-      wp_error <= 1'b0;
 
       // move to cmd state
       status <= STATUS_CMD;
@@ -367,21 +331,13 @@ always @(posedge clk) begin
           status <= STATUS_EXEC;
           results_len <= 7;
         end else if (ins[4:0] == WRITE_DATA) begin
-          if (disk_wp[drsel]) begin
-            status <= STATUS_RX;
-            results_len <= 7;
-            wp_error <= 1'b1;
-            disk_error <= 1'b1;
-            
-          end else begin
-            state <= STARTWRITE;
-            cylinder[drsel] <= params[1];
-            head[0] <= params[2][0];
-            sector_id <= params[3];
-            fifo_reset <= 1'b1;
-            fifo_in_size <= 1'b0;
-            status <= STATUS_EXEC;
-          end
+          state <= STARTWRITE;
+          cylinder[drsel] <= params[1];
+          head[0] <= params[2][0];
+          sector_id <= params[3];
+          fifo_reset <= 1'b1;
+          fifo_in_size <= 1'b0;
+          status <= STATUS_EXEC;
         end else if (ins[4:0] == READ_DATA || ins[4:0] == READ_DELETED_DATA) begin
           fifo_reset <= 1'b1;
           last_byte_read <= 1'b0;
@@ -415,7 +371,7 @@ always @(posedge clk) begin
 
   // write results in
   if (disk_cr[4] && state != IDLE) begin
-    param_out[0] <= {1'b0, disk_error, 1'b0, 1'b0, not_ready[drsel], 2'b00, drsel};
+    param_out[0] <= {1'b0, disk_cr[3], 1'b0, 1'b0, not_ready[drsel], 2'b00, drsel};
     param_out[1] <= {bad_cylinder, 1'b0, disk_cr[3], 1'b0, 1'b0, disk_cr[3], wp_error, disk_cr[3]};
     param_out[2] <= {1'b0, cm, crc_error, wrong_cylinder, scan_equal_hit, scan_not_found, bad_cylinder, disk_cr[3]};
     param_out[3] <= cylinder[drsel];
@@ -428,17 +384,14 @@ always @(posedge clk) begin
   if (disk_cr[4] && state == COMMIT) begin // finished command
     disk_sr[21:20] <= 2'b00; // reset sector write command
     disk_sr[16] <= 1'b1; // signal ack of ack
-    recnotfound <= disk_cr[3];
     state <= IDLE;
     status <= STATUS_RX;
-    disk_error <= disk_cr[3];
   end
   
   // has finished reading sector id
   if (disk_cr[4] && state == READID) begin
     disk_sr[23:22] <= 2'b00; // reset command
     disk_sr[16] <= 1'b1; // signal ack of ack
-    disk_error <= disk_cr[3];
     sector_id[7:0] <= disk_cr[31:24];
     status <= STATUS_RX;
   end
@@ -447,8 +400,6 @@ always @(posedge clk) begin
   if (disk_cr[4] && state == READSECT) begin // finished command
     disk_sr[18:17] <= 2'b00; // reset sector read command
     disk_sr[16] <= 1'b1; // signal ack of ack
-    recnotfound <= disk_cr[3];
-    disk_error <= disk_cr[3];
     if (disk_cr[3]) begin
       status <= STATUS_RX;
     end
@@ -460,7 +411,6 @@ always @(posedge clk) begin
   if (|disk_cr[1:0] && state == SEEKING) begin // finished seek
     disk_sr[25:24] <= 2'b00; // reset seek
     disk_sr[16] <= 1'b1; // signal ack of ack
-    disk_error <= disk_cr[3];
     if (disk_cr[1]) begin
       fdcbusy[1] <= 1'b0;
       intstat1 <= {1'b0, disk_cr[3], ~disk_cr[3], 1'b0, 1'b0, 3'd1};//{2'b11, 1'b0, 1'b0, not_ready, 3'd0}
