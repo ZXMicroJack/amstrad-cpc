@@ -137,14 +137,14 @@ reg[2:0] results_len = 0;
 reg[2:0] results_pos = 0;
 
 reg[7:0] params[0:10];
-reg[3:0] params_len = 0;
+// reg[3:0] params_len = 0;
 reg[3:0] params_pos = 0;
 
 wire rfm = (status == STATUS_IDLE && state != SEEKING) || 
   (status == STATUS_EXEC && state == READING && !fifo_empty) ||
   (status == STATUS_EXEC && ins[4:0] == WRITE_DATA && fifo_in_size != 512) ||
   (status == STATUS_RX && results_len != results_pos) ||
-  (status == STATUS_CMD && params_len != params_pos);
+  (status == STATUS_CMD);
 wire dio = status == STATUS_RX || (status == STATUS_EXEC && ins[4:0] == READ_DATA);
 wire exm = status == STATUS_EXEC;
 wire busy = status != STATUS_IDLE;
@@ -177,6 +177,7 @@ reg[7:0] head = 8'd0;
 // TODO fake data
 // reg disk_error = 1'b0;
 reg wp_error = 1'b0;
+// wire wp_error = disk_cr[2];
 reg seek_good = 1'b0;
 
 wire[7:0] status_reg = {rfm, dio, exm, busy, 2'b00, fdcbusy[1:0]};
@@ -246,20 +247,12 @@ always @(posedge clk) begin
       params_pos <= 0;
 
       // move to cmd state
-      status <= STATUS_CMD;
       ins[7:0] <= din[7:0];
       case (din[4:0])
-        READ_DATA,READ_DELETED_DATA,WRITE_DATA,WRITE_DELETED_DATA,READ_TRACK,SCAN_EQUAL,SCAN_HEQUAL,SCAN_LEQUAL:
-          params_len <= 8;
-        FORMAT_TRACK:
-          params_len <= 5;
-        SEEK, SPECIFY:
-          params_len <= 2;
-        READ_ID, RECALIBRATE, SENSE_DRIVE_STATUS: begin
-          params_len <= 1;
+        READ_DATA,READ_DELETED_DATA,WRITE_DATA,WRITE_DELETED_DATA,READ_TRACK,SCAN_EQUAL,SCAN_HEQUAL,SCAN_LEQUAL,FORMAT_TRACK,SEEK,SPECIFY,READ_ID,RECALIBRATE,SENSE_DRIVE_STATUS,READ_ID,RECALIBRATE,SENSE_DRIVE_STATUS: begin
+          status <= STATUS_CMD;
         end
         SENSE_INT_STATUS: begin
-          params_len <= 0;
           if (|intstat0) begin
             param_out[0] <= {intstat0[7:4], not_ready[0], 3'd0};
             param_out[1] <= cylinder[0];
@@ -277,8 +270,8 @@ always @(posedge clk) begin
           status <= STATUS_RX;
         end
         default: begin
-          params_len <= 0;
           status <= STATUS_RX;
+          param_out[0] <= 8'h80;
           results_len <= 1;
           ins[7:0] <= INVALID_INS;
         end
@@ -296,63 +289,61 @@ always @(posedge clk) begin
         rdy_fdd[0] <= motor_on ? disk_cr[5] : 1'b0;
 
       // received last parameter
-      if ((params_pos + 1) == params_len) begin
-        results_pos <= 0;
+      if (ins[4:0] == SENSE_DRIVE_STATUS && params_pos == 0) begin // 1
+        param_out[0] <= din[0] ?
+          {1'b0, disk_wp[1], rdy_fdd[1], cylinder[1] == 0 ? 1'b1 : 1'b0, side_fdd, sideselect_fdd, 2'b01} :
+          {1'b0, disk_wp[0], rdy_fdd[0], cylinder[0] == 0 ? 1'b1 : 1'b0, side_fdd, sideselect_fdd, 2'b00};
+        results_len <= 1;
         status <= STATUS_RX;
-
-        if (ins[4:0] == SENSE_DRIVE_STATUS) begin
-          param_out[0] <= drsel ? 
-            {1'b0, disk_wp[1], rdy_fdd[1], cylinder[1] == 0 ? 1'b1 : 1'b0, side_fdd, sideselect_fdd, 2'b01} :
-            {1'b0, disk_wp[0], rdy_fdd[0], cylinder[0] == 0 ? 1'b1 : 1'b0, side_fdd, sideselect_fdd, 2'b00};
-          results_len <= 1;
           
-        end else if (ins[4:0] == SPECIFY) begin
-          status <= STATUS_IDLE;
-        end else if (ins[4:0] == RECALIBRATE) begin
-          state <= SEEKING;
-          cylinder[din[0]] <= 8'd0;
-          disk_sr[15:0] <= {head[0], 7'd0, sector_id[7:0]};
-          disk_sr[16] <= 1'b0;
-          disk_sr[25:24] <= din[0] ? 2'b10 : 2'b01;
-          fdcbusy[din[0]] <= 1'b1;
-          status <= STATUS_IDLE;
-        end else if (ins[4:0] == SEEK) begin
-          state <= SEEKING;
-          cylinder[drsel] <= din[7:0];
-          disk_sr[15:0] <= {head[0], din[6:0], sector_id[7:0]};
-          disk_sr[16] <= 1'b0;
-          disk_sr[25:24] <= drsel ? 2'b10 : 2'b01;
-          fdcbusy[drsel] <= 1'b1;
-          status <= STATUS_IDLE;
-        end else if (ins[4:0] == READ_ID) begin
-          state <= READID;
-          disk_sr[16] <= 1'b0;
-          disk_sr[23:22] <= din[0] ? 2'b10 : 2'b01;
-          status <= STATUS_EXEC;
-          results_len <= 7;
-        end else if (ins[4:0] == WRITE_DATA) begin
-          state <= STARTWRITE;
-          cylinder[drsel] <= params[1];
-          head[0] <= params[2][0];
-          sector_id <= params[3];
-          fifo_reset <= 1'b1;
-          fifo_in_size <= 1'b0;
-          status <= STATUS_EXEC;
-        end else if (ins[4:0] == READ_DATA || ins[4:0] == READ_DELETED_DATA) begin
-          fifo_reset <= 1'b1;
-          last_byte_read <= 1'b0;
-          state <= READSECT;
-          disk_sr[21:0] <= {6'b000, drsel, ~drsel, 1'b0, head[0], params[1][6:0], params[3][7:0]};
+      end else if (ins[4:0] == SPECIFY && params_pos == 1) begin // 2
+        status <= STATUS_IDLE;
 
-          cylinder[drsel] <= params[1];
-          head[0] <= params[2][0];
-          sector_id <= params[3];
-          status <= STATUS_EXEC;
-          results_len <= 7;
-          
-        end else begin
-          results_len <= 7;
-        end
+      end else if (ins[4:0] == RECALIBRATE && params_pos == 0) begin
+        state <= SEEKING;
+        cylinder[din[0]] <= 8'd0;
+        disk_sr[15:0] <= {head[0], 7'd0, sector_id[7:0]};
+        disk_sr[16] <= 1'b0;
+        disk_sr[25:24] <= din[0] ? 2'b10 : 2'b01;
+        fdcbusy[din[0]] <= 1'b1;
+        status <= STATUS_IDLE;
+      end else if (ins[4:0] == SEEK && params_pos == 1) begin
+        state <= SEEKING;
+        cylinder[drsel] <= din[7:0];
+        disk_sr[15:0] <= {head[0], din[6:0], sector_id[7:0]};
+        disk_sr[16] <= 1'b0;
+        disk_sr[25:24] <= drsel ? 2'b10 : 2'b01;
+        fdcbusy[drsel] <= 1'b1;
+        status <= STATUS_IDLE;
+      end else if (ins[4:0] == READ_ID && params_pos == 0) begin
+        state <= READID;
+        disk_sr[16] <= 1'b0;
+        disk_sr[23:22] <= din[0] ? 2'b10 : 2'b01;
+        status <= STATUS_EXEC;
+        results_len <= 7;
+      end else if ((ins[4:0] == WRITE_DATA || ins[4:0] == WRITE_DELETED_DATA) && params_pos == 7) begin
+        state <= STARTWRITE;
+        cylinder[drsel] <= params[1];
+        head[0] <= params[2][0];
+        sector_id <= params[3];
+        fifo_reset <= 1'b1;
+        fifo_in_size <= 1'b0;
+        status <= STATUS_EXEC;
+      end else if ((ins[4:0] == READ_DATA || ins[4:0] == READ_DELETED_DATA) && params_pos == 7) begin
+        fifo_reset <= 1'b1;
+        last_byte_read <= 1'b0;
+        state <= READSECT;
+        disk_sr[21:0] <= {6'b000, drsel, ~drsel, 1'b0, head[0], params[1][6:0], params[3][7:0]};
+
+        cylinder[drsel] <= params[1];
+        head[0] <= params[2][0];
+        sector_id <= params[3];
+        status <= STATUS_EXEC;
+        results_len <= 7;
+        
+      end else if ((ins[4:0] == FORMAT_TRACK && params_pos == 4) || params_pos == 7) begin
+        results_len <= 7;
+        status <= STATUS_RX;
       end
     end else if (status == STATUS_EXEC) begin // doing something
       if (ins[4:0] == WRITE_DATA) begin
