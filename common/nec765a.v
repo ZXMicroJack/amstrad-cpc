@@ -176,8 +176,8 @@ reg[7:0] head = 8'd0;
 
 // TODO fake data
 // reg disk_error = 1'b0;
-reg wp_error = 1'b0;
-// wire wp_error = disk_cr[2];
+// reg wp_error = 1'b0;
+wire wp_error = disk_cr[2];
 reg seek_good = 1'b0;
 
 wire[7:0] status_reg = {rfm, dio, exm, busy, 2'b00, fdcbusy[1:0]};
