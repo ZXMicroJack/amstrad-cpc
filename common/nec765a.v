@@ -193,6 +193,10 @@ assign dout =
 
 reg was_fifo_read = 1'b0;
 reg was_param_read = 1'b0;
+reg[8:0] overrun_timer = 9'h1ff;
+
+localparam INITIAL_OVERRUN_TIMER = 9'h000;
+localparam NEXT_OVERRUN_TIMER = 9'h000;
 
 always @(posedge clk) begin
   prev_rd_n <= rd_n;
@@ -202,7 +206,16 @@ always @(posedge clk) begin
   fifo_out_read <= 1'b0;
   fifo_in_write <= 1'b0;
   fifo_reset <= 0;
+ 
+  // run overrun timer
+  if (!(&overrun_timer)) overrun_timer <= overrun_timer + 1;
   
+  // check for overrun
+//   if (&overrun_timer && state == READING) begin
+//     param_out[0][6] <= 1'b1;
+//     param_out[1][4] <= 1'b1;
+//   end
+ 
   // handle chip reset
   if (!rst_n) begin
     disk_sr[31:0] <= 0;
@@ -217,7 +230,12 @@ always @(posedge clk) begin
     if (was_fifo_read) begin
       fifo_out_read <= 1'b1;
       was_fifo_read <= 1'b0;
-      if (fifo_lastbyte) begin
+      overrun_timer <= NEXT_OVERRUN_TIMER;
+      if (&overrun_timer) begin
+        param_out[0][6] <= 1'b1;
+        param_out[1][4] <= 1'b1;
+      end
+      if (fifo_lastbyte || &overrun_timer) begin
         state <= IDLE;
         status <= STATUS_RX;
       end
@@ -396,6 +414,7 @@ always @(posedge clk) begin
     end
 
     state <= disk_cr[3] ? IDLE : READING;
+    overrun_timer <= INITIAL_OVERRUN_TIMER;
   end
   
   // has finished seeking
