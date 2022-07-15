@@ -125,6 +125,30 @@ localparam SENSE_DRIVE_STATUS = 5'h04; // rx:f                     tx:st3
 localparam SEEK               = 5'h0f; // rx:f,ncn                 tx:
 localparam INVALID_INS        = 5'h1f;
 
+
+localparam SR_ACK = 16;
+localparam SR_SEEK1 = 25;
+localparam SR_SEEK0 = 24;
+localparam SR_READID0 = 22;
+localparam SR_READID1 = 23;
+localparam SR_READSECT0 = 17;
+localparam SR_READSECT1 = 18;
+localparam SR_WRITE1 = 21;
+localparam SR_WRITE0 = 20;
+
+localparam CR_SECTIDH = 31;
+localparam CR_SECTIDL = 24;
+
+localparam CR_HEADH = 15;
+localparam CR_HEADL = 8;
+localparam CR_DISKIN1 = 6;
+localparam CR_DISKIN0 = 5;
+localparam CR_DONE = 4;
+localparam CR_ERROR = 3;
+localparam CR_WPERROR = 2;
+localparam CR_SEEKDONE1 = 1;
+localparam CR_SEEKDONE0 = 0;
+
 localparam STATUS_IDLE = 0;
 localparam STATUS_CMD = 1;
 localparam STATUS_EXEC = 2;
@@ -152,7 +176,7 @@ reg[1:0] fdcbusy = 2'b00;
 reg[7:0] intstat0 = 8'h00;
 reg[7:0] intstat1 = 8'h00;
 reg[1:0] rdy_fdd = 2'b00;
-wire not_ready[1:0] = {!disk_cr[6], !disk_cr[5]};
+wire not_ready[1:0] = {!disk_cr[CR_DISKIN1], !disk_cr[CR_DISKIN0]};
 
 reg[7:0] ins;
 
@@ -177,12 +201,12 @@ reg[7:0] head = 8'd0;
 // TODO fake data
 // reg disk_error = 1'b0;
 // reg wp_error = 1'b0;
-wire wp_error = disk_cr[2];
+wire wp_error = disk_cr[CR_WPERROR];
 reg seek_good = 1'b0;
 
 wire[7:0] status_reg = {rfm, dio, exm, busy, 2'b00, fdcbusy[1:0]};
 reg[7:0] param_out[0:6];
-  
+
 assign dout = 
   !ce ? 8'hff :
   !rd_n && !a0 ? status_reg :
@@ -300,11 +324,12 @@ always @(posedge clk) begin
       params_pos <= params_pos + 1;
       
       if (params_pos == 0) drsel <= din[0];
+      
 
       if (din[0])
-        rdy_fdd[1] <= motor_on ? disk_cr[6] : 1'b0;
+        rdy_fdd[1] <= motor_on ? disk_cr[CR_DISKIN1] : 1'b0;
       else
-        rdy_fdd[0] <= motor_on ? disk_cr[5] : 1'b0;
+        rdy_fdd[0] <= motor_on ? disk_cr[CR_DISKIN0] : 1'b0;
 
       // received last parameter
       if (ins[4:0] == SENSE_DRIVE_STATUS && params_pos == 0) begin // 1
@@ -321,22 +346,22 @@ always @(posedge clk) begin
         state <= SEEKING;
         cylinder[din[0]] <= 8'd0;
         disk_sr[15:0] <= {head[0], 7'd0, sector_id[7:0]};
-        disk_sr[16] <= 1'b0;
-        disk_sr[25:24] <= din[0] ? 2'b10 : 2'b01;
+        disk_sr[SR_ACK] <= 1'b0;
+        disk_sr[SR_SEEK1:SR_SEEK0] <= din[0] ? 2'b10 : 2'b01;
         fdcbusy[din[0]] <= 1'b1;
         status <= STATUS_IDLE;
       end else if (ins[4:0] == SEEK && params_pos == 1) begin
         state <= SEEKING;
         cylinder[drsel] <= din[7:0];
         disk_sr[15:0] <= {head[0], din[6:0], sector_id[7:0]};
-        disk_sr[16] <= 1'b0;
-        disk_sr[25:24] <= drsel ? 2'b10 : 2'b01;
+        disk_sr[SR_ACK] <= 1'b0;
+        disk_sr[SR_SEEK1:SR_SEEK0] <= drsel ? 2'b10 : 2'b01;
         fdcbusy[drsel] <= 1'b1;
         status <= STATUS_IDLE;
       end else if (ins[4:0] == READ_ID && params_pos == 0) begin
         state <= READID;
-        disk_sr[16] <= 1'b0;
-        disk_sr[23:22] <= din[0] ? 2'b10 : 2'b01;
+        disk_sr[SR_ACK] <= 1'b0;
+        disk_sr[SR_READID1:SR_READID0] <= din[0] ? 2'b10 : 2'b01;
         status <= STATUS_EXEC;
         results_len <= 7;
       end else if ((ins[4:0] == WRITE_DATA || ins[4:0] == WRITE_DELETED_DATA) && params_pos == 7) begin
@@ -351,7 +376,10 @@ always @(posedge clk) begin
         fifo_reset <= 1'b1;
         last_byte_read <= 1'b0;
         state <= READSECT;
-        disk_sr[21:0] <= {6'b000, drsel, ~drsel, 1'b0, head[0], params[1][6:0], params[3][7:0]};
+        disk_sr[15:0] <= {1'b0, head[0], params[1][6:0], params[3][7:0]};
+        disk_sr[SR_READSECT1:SR_READSECT0] <= {drsel, ~drsel};
+        disk_sr[SR_ACK] <= 1'b0;
+//         disk_sr[21:0] <= {6'b000, drsel, ~drsel, 1'b0, head[0], params[1][6:0], params[3][7:0]};
 
         cylinder[drsel] <= params[1];
         head[0] <= params[2][0];
@@ -369,64 +397,71 @@ always @(posedge clk) begin
         fifo_in_size <= fifo_in_size + 1;
         if (fifo_in_size == 511) begin
           state <= COMMIT;
-          if (drsel)
-            disk_sr[21:0] <= {6'b100000, head[0], cylinder[drsel][6:0], sector_id[7:0]};
-          else
-            disk_sr[21:0] <= {6'b010000, head[0], cylinder[drsel][6:0], sector_id[7:0]};
+          if (drsel) begin
+            disk_sr[SR_WRITE1:SR_WRITE0] <= 2'b10;
+            disk_sr[SR_ACK] <= 1'b0;
+            disk_sr[15:0] <= {head[0], cylinder[drsel][6:0], sector_id[7:0]};
+          end else begin
+            disk_sr[SR_WRITE1:SR_WRITE0] <= 2'b01;
+            disk_sr[SR_ACK] <= 1'b0;
+            disk_sr[15:0] <= {head[0], cylinder[drsel][6:0], sector_id[7:0]};
+          end
         end
       end
     end
   end
 
+  
   // write results in
-  if (disk_cr[4] && state != IDLE) begin
-    param_out[0] <= {1'b0, disk_cr[3], 1'b0, 1'b0, not_ready[drsel], 2'b00, drsel};
-    param_out[1] <= {bad_cylinder, 1'b0, disk_cr[3], 1'b0, 1'b0, disk_cr[3], wp_error, disk_cr[3]};
-    param_out[2] <= {1'b0, cm, crc_error, wrong_cylinder, scan_equal_hit, scan_not_found, bad_cylinder, disk_cr[3]};
+  if (disk_cr[CR_DONE] && state != IDLE) begin
+    param_out[0] <= {1'b0, disk_cr[CR_ERROR], 1'b0, 1'b0, not_ready[drsel], 2'b00, drsel};
+    param_out[1] <= {bad_cylinder, 1'b0, disk_cr[CR_ERROR], 1'b0, 1'b0, disk_cr[CR_ERROR], wp_error, disk_cr[CR_ERROR]};
+    param_out[2] <= {1'b0, cm, crc_error, wrong_cylinder, scan_equal_hit, scan_not_found, bad_cylinder, disk_cr[CR_ERROR]};
     param_out[3] <= cylinder[drsel];
-    param_out[4] <= disk_cr[15:8];
-    param_out[5] <= disk_cr[31:24];
+    param_out[4] <= disk_cr[CR_HEADH:CR_HEADL];
+    param_out[5] <= disk_cr[CR_SECTIDH:CR_SECTIDL];
     param_out[6] <= sector_size;
   end
   
   // has finished writing sector
-  if (disk_cr[4] && state == COMMIT) begin // finished command
-    disk_sr[21:20] <= 2'b00; // reset sector write command
-    disk_sr[16] <= 1'b1; // signal ack of ack
+  if (disk_cr[CR_DONE] && state == COMMIT) begin // finished command
+    disk_sr[SR_WRITE1:SR_WRITE0] <= 2'b00; // reset sector write command
+    disk_sr[SR_ACK] <= 1'b1; // signal ack of ack
     state <= IDLE;
     status <= STATUS_RX;
   end
   
+
   // has finished reading sector id
-  if (disk_cr[4] && state == READID) begin
-    disk_sr[23:22] <= 2'b00; // reset command
-    disk_sr[16] <= 1'b1; // signal ack of ack
-    sector_id[7:0] <= disk_cr[31:24];
+  if (disk_cr[CR_DONE] && state == READID) begin
+    disk_sr[SR_READID1:SR_READID0] <= 2'b00; // reset command
+    disk_sr[SR_ACK] <= 1'b1; // signal ack of ack
+    sector_id[7:0] <= disk_cr[CR_SECTIDH:CR_SECTIDL];
     status <= STATUS_RX;
   end
 
   // has finished reading sector
-  if (disk_cr[4] && state == READSECT) begin // finished command
-    disk_sr[18:17] <= 2'b00; // reset sector read command
-    disk_sr[16] <= 1'b1; // signal ack of ack
-    if (disk_cr[3]) begin
+  if (disk_cr[CR_DONE] && state == READSECT) begin // finished command
+    disk_sr[SR_READSECT1:SR_READSECT0] <= 2'b00; // reset sector read command
+    disk_sr[SR_ACK] <= 1'b1; // signal ack of ack
+    if (disk_cr[CR_ERROR]) begin
       status <= STATUS_RX;
     end
 
-    state <= disk_cr[3] ? IDLE : READING;
+    state <= disk_cr[CR_ERROR] ? IDLE : READING;
     overrun_timer <= INITIAL_OVERRUN_TIMER;
   end
   
   // has finished seeking
-  if (|disk_cr[1:0] && state == SEEKING) begin // finished seek
-    disk_sr[25:24] <= 2'b00; // reset seek
-    disk_sr[16] <= 1'b1; // signal ack of ack
-    if (disk_cr[1]) begin
+  if (|disk_cr[CR_SEEKDONE1:CR_SEEKDONE0] && state == SEEKING) begin // finished seek
+    disk_sr[SR_SEEK1:SR_SEEK0] <= 2'b00; // reset seek
+    disk_sr[SR_ACK] <= 1'b1; // signal ack of ack
+    if (disk_cr[CR_SEEKDONE1]) begin
       fdcbusy[1] <= 1'b0;
-      intstat1 <= {1'b0, disk_cr[3], ~disk_cr[3], 1'b0, 1'b0, 3'd1};//{2'b11, 1'b0, 1'b0, not_ready, 3'd0}
+      intstat1 <= {1'b0, disk_cr[CR_ERROR], ~disk_cr[CR_ERROR], 1'b0, 1'b0, 3'd1};//{2'b11, 1'b0, 1'b0, not_ready, 3'd0}
     end else begin
       fdcbusy[0] <= 1'b0;
-      intstat0 <= {1'b0, disk_cr[3], ~disk_cr[3], 1'b0, 1'b0, 3'd0};//{2'b11, 1'b0, 1'b0, not_ready, 3'd0}
+      intstat0 <= {1'b0, disk_cr[CR_ERROR], ~disk_cr[CR_ERROR], 1'b0, 1'b0, 3'd0};//{2'b11, 1'b0, 1'b0, not_ready, 3'd0}
     end
     state <= IDLE;
   end
@@ -443,6 +478,6 @@ end
 //     params_pos[3:0],
 //     params_len[3:0],
     fifo_empty, motor_on, status[1:0],
-    disk_cr[4], state[2:0]};
+    disk_cr[CR_DONE], state[2:0]};
 
 endmodule
