@@ -126,15 +126,24 @@ localparam SEEK               = 5'h0f; // rx:f,ncn                 tx:
 localparam INVALID_INS        = 5'h1f;
 
 
-localparam SR_ACK = 16;
-localparam SR_SEEK1 = 25;
-localparam SR_SEEK0 = 24;
-localparam SR_READID0 = 22;
-localparam SR_READID1 = 23;
-localparam SR_READSECT0 = 17;
-localparam SR_READSECT1 = 18;
-localparam SR_WRITE1 = 21;
-localparam SR_WRITE0 = 20;
+// localparam SR_ACK = 16;
+// localparam SR_SEEK1 = 25;
+// localparam SR_SEEK0 = 24;
+// localparam SR_READID0 = 22;
+// localparam SR_READID1 = 23;
+// localparam SR_READSECT0 = 17;
+// localparam SR_READSECT1 = 18;
+// localparam SR_WRITE1 = 21;
+// localparam SR_WRITE0 = 20;
+localparam SR_ACK = 23;
+localparam SR_READSECT0 = 24;
+localparam SR_READSECT1 = 25;
+localparam SR_WRITE0 = 26;
+localparam SR_WRITE1 = 27;
+localparam SR_READID0 = 28;
+localparam SR_READID1 = 29;
+localparam SR_SEEK0 = 30;
+localparam SR_SEEK1 = 31;
 
 localparam CR_SECTIDH = 31;
 localparam CR_SECTIDL = 24;
