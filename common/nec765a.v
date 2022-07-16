@@ -135,6 +135,7 @@ localparam INVALID_INS        = 5'h1f;
 // localparam SR_READSECT1 = 18;
 // localparam SR_WRITE1 = 21;
 // localparam SR_WRITE0 = 20;
+localparam SR_HS = 22;
 localparam SR_ACK = 23;
 localparam SR_READSECT0 = 24;
 localparam SR_READSECT1 = 25;
@@ -370,6 +371,7 @@ always @(posedge clk) begin
       end else if (ins[4:0] == READ_ID && params_pos == 0) begin
         state <= READID;
         disk_sr[SR_ACK] <= 1'b0;
+        disk_sr[SR_HS] <= din[2];
         disk_sr[SR_READID1:SR_READID0] <= din[0] ? 2'b10 : 2'b01;
         status <= STATUS_EXEC;
         results_len <= 7;
@@ -385,8 +387,9 @@ always @(posedge clk) begin
         fifo_reset <= 1'b1;
         last_byte_read <= 1'b0;
         state <= READSECT;
-        disk_sr[22:0] <= {params[2][7:0], params[1][6:0], params[3][7:0]};
+        disk_sr[21:0] <= {params[2][6:0], params[1][6:0], params[3][7:0]};
         disk_sr[SR_READSECT1:SR_READSECT0] <= {drsel, ~drsel};
+        disk_sr[SR_HS] <= params[0][2];
         disk_sr[SR_ACK] <= 1'b0;
 //         disk_sr[21:0] <= {6'b000, drsel, ~drsel, 1'b0, head[0], params[1][6:0], params[3][7:0]};
 
@@ -409,11 +412,13 @@ always @(posedge clk) begin
           if (drsel) begin
             disk_sr[SR_WRITE1:SR_WRITE0] <= 2'b10;
             disk_sr[SR_ACK] <= 1'b0;
-            disk_sr[22:0] <= {head[7:0], cylinder[drsel][6:0], sector_id[7:0]};
+            disk_sr[SR_HS] <= params[0][2];
+            disk_sr[21:0] <= {head[6:0], cylinder[drsel][6:0], sector_id[7:0]};
           end else begin
             disk_sr[SR_WRITE1:SR_WRITE0] <= 2'b01;
             disk_sr[SR_ACK] <= 1'b0;
-            disk_sr[22:0] <= {head[7:0], cylinder[drsel][6:0], sector_id[7:0]};
+            disk_sr[SR_HS] <= params[0][2];
+            disk_sr[21:0] <= {head[6:0], cylinder[drsel][6:0], sector_id[7:0]};
           end
         end
       end

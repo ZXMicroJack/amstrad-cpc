@@ -87,10 +87,15 @@ $(ROMGEN): $(ZPUFLEXDIR)/Firmware/zpuromgen.c
 	gcc -o $(ZPUFLEXDIR)/Firmware/zpuromgen $(ZPUFLEXDIR)/Firmware/zpuromgen.c
 
 %_ROM.vhd: %.bin $(ROMGEN)
-	sed 's/dualportram/$*_ROM/;s/^type ram_type is.*$$/type ram_type is array(natural range 0 to 24575) of std_logic_vector(wordSize-1 downto 0);/g' >$*_ROM.vhd <$(RTL_DIR)/rom_prologue.vhd
+	sed 's/dualportram/$*_ROM/' >$*_ROM.vhd <$(RTL_DIR)/rom_prologue.vhd
 	$(ROMGEN) $*.bin >>$*_ROM.vhd
 	cat >>$*_ROM.vhd $(RTL_DIR)/rom_epilogue.vhd
 
+# %_ROM.vhd: %.bin $(ROMGEN)
+# 	sed 's/dualportram/$*_ROM/;s/^type ram_type is.*$$/type ram_type is array(natural range 0 to 24575) of std_logic_vector(wordSize-1 downto 0);/g' >$*_ROM.vhd <$(RTL_DIR)/rom_prologue.vhd
+# 	$(ROMGEN) $*.bin >>$*_ROM.vhd
+# 	cat >>$*_ROM.vhd $(RTL_DIR)/rom_epilogue.vhd
+	
 # Link - this produces an ELF binary.
 
 $(MAIN_PRJ).elf: $(MINSTARTUP_OBJ) $(MAIN_OBJ)
