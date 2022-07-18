@@ -227,10 +227,10 @@ assign dout =
 
 reg was_fifo_read = 1'b0;
 reg was_param_read = 1'b0;
-reg[8:0] overrun_timer = 9'h1ff;
+reg[9:0] overrun_timer = 10'h3ff;
 
-localparam INITIAL_OVERRUN_TIMER = 9'h000;
-localparam NEXT_OVERRUN_TIMER = 9'h000;
+localparam INITIAL_OVERRUN_TIMER = 10'h000;
+localparam NEXT_OVERRUN_TIMER = 10'h000;
 
 always @(posedge clk) begin
   prev_rd_n <= rd_n;
