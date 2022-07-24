@@ -266,12 +266,12 @@ always @(posedge clk) begin
       fifo_out_read <= 1'b1;
       was_fifo_read <= 1'b0;
       overrun_timer <= NEXT_OVERRUN_TIMER;
-//       if (&overrun_timer) begin
-//         param_out[0][6] <= 1'b1;
-//         param_out[1][4] <= 1'b1;
-//       end
-//       if (fifo_lastbyte || &overrun_timer) begin
-      if (fifo_lastbyte) begin
+      if (&overrun_timer) begin
+        param_out[0][6] <= 1'b1;
+        param_out[1][4] <= 1'b1;
+      end
+      if (fifo_lastbyte || &overrun_timer) begin
+//       if (fifo_lastbyte) begin
         state <= IDLE;
         status <= STATUS_RX;
       end
