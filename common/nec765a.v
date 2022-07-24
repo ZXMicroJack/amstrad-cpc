@@ -30,6 +30,7 @@ module nec765 (
 //wd1770 regs
   reg drsel = 0;
   reg motor_on = 1'b0;
+  reg hdsel = 0;
 
   // ctrl-module transfer state machine
   localparam IDLE = 0;
@@ -265,11 +266,12 @@ always @(posedge clk) begin
       fifo_out_read <= 1'b1;
       was_fifo_read <= 1'b0;
       overrun_timer <= NEXT_OVERRUN_TIMER;
-      if (&overrun_timer) begin
-        param_out[0][6] <= 1'b1;
-        param_out[1][4] <= 1'b1;
-      end
-      if (fifo_lastbyte || &overrun_timer) begin
+//       if (&overrun_timer) begin
+//         param_out[0][6] <= 1'b1;
+//         param_out[1][4] <= 1'b1;
+//       end
+//       if (fifo_lastbyte || &overrun_timer) begin
+      if (fifo_lastbyte) begin
         state <= IDLE;
         status <= STATUS_RX;
       end
@@ -333,7 +335,10 @@ always @(posedge clk) begin
       params[params_pos] <= din;
       params_pos <= params_pos + 1;
       
-      if (params_pos == 0) drsel <= din[0];
+      if (params_pos == 0) begin
+        drsel <= din[0];
+        hdsel <= din[2];
+      end
       
 
       if (din[0])
@@ -428,7 +433,8 @@ always @(posedge clk) begin
   
   // write results in
   if (disk_cr[CR_DONE] && state != IDLE) begin
-    param_out[0] <= {1'b0, disk_cr[CR_ERROR], 1'b0, 1'b0, not_ready[drsel], 2'b00, drsel};
+//     param_out[0] <= {1'b0, disk_cr[CR_ERROR], 1'b0, 1'b0, not_ready[drsel], 2'b00, drsel};
+    param_out[0] <= {1'b0, disk_cr[CR_ERROR], 1'b0, 1'b0, not_ready[drsel], hdsel, 1'b0, drsel};
     param_out[1] <= {bad_cylinder, 1'b0, disk_cr[CR_ERROR], 1'b0, 1'b0, disk_cr[CR_ERROR], wp_error, disk_cr[CR_ERROR]};
     param_out[2] <= {1'b0, cm, crc_error, wrong_cylinder, scan_equal_hit, scan_not_found, bad_cylinder, disk_cr[CR_ERROR]};
     param_out[3] <= cylinder[drsel];
@@ -485,13 +491,19 @@ end
 //   assign debug[31:0] = disk_cr[31:0];
   assign debug[31:0] = {
     ins[7:0],
-    1'b0, cylinder[0][6:0],
+    param_out[0][7:0],
+    param_out[1][7:0],
+    param_out[2][7:0]
+  };
+    
+//     1'b0, cylinder[0][6:0],
+//     sector_id[7:0],
+
 //     1'b0, results_pos[2:0],
 //     1'b0, results_len[2:0],
-    sector_id[7:0],
 //     params_pos[3:0],
 //     params_len[3:0],
-    fifo_empty, motor_on, status[1:0],
-    disk_cr[CR_DONE], state[2:0]};
+//     fifo_empty, motor_on, status[1:0],
+//     disk_cr[CR_DONE], state[2:0]};
 
 endmodule
