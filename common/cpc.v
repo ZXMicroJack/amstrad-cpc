@@ -101,12 +101,12 @@ module cpc (
   wire vsync_processed = (port_b_oe_n[0] == 1'b0)? port_b_output[0] : vsync;
 
   // Latch de lo ultimo escrito en los puertos A, B y C
-  reg [7:0] port_a_input = 8'hFF;
+  wire [7:0] port_a_input; // = 8'hFF;
  
 
   // Sonido + cassette
   wire mic = port_c_output[5];
-  wire [7:0] ay_cha, ay_chb, ay_chc;
+  wire [13:0] ay_cha, ay_chb, ay_chc;
   
   // Seales desde el teclado
   wire kbd_reset, kbd_mreset, kbd_nmi;
@@ -330,31 +330,58 @@ module cpc (
 
 
 
-  YM2149 sonido_ay_3 (
-    .I_DA(port_a_output),
-    .O_DA(port_a_input),
-    .O_DA_OE_L(),
-    .I_A9_L(1'b0),
-    .I_A8(1'b1),
-    .I_BDIR(port_c_output[7]),  
-    .I_BC2(1'b1),
-    .I_BC1(port_c_output[6]),   
-    .I_SEL_L(1'b1),
-    .O_AUDIO(),
-    .O_AUDIO_A(ay_cha),
-    .O_AUDIO_B(ay_chb),
-    .O_AUDIO_C(ay_chc),
-    .I_IOA(columns),
-    .O_IOA(),
-    .O_IOA_OE_L(),
-    .I_IOB(8'hFF),
-    .O_IOB(),
-    .O_IOB_OE_L(),
-    .ENA(1'b1),
-    .RESET_L(reset_n),
-    .CLK(clk_for_crtc), // 1MHz
-    .CLKREG(clk_reg)
+//  YM2149 sonido_ay_3 (
+//    .I_DA(port_a_output),
+//    .O_DA(port_a_input),
+//    .O_DA_OE_L(),
+//    .I_A9_L(1'b0),
+//    .I_A8(1'b1),
+//    .I_BDIR(port_c_output[7]),  
+//    .I_BC2(1'b1),
+//    .I_BC1(port_c_output[6]),   
+//    .I_SEL_L(1'b1),
+//    .O_AUDIO(),
+//    .O_AUDIO_A(ay_cha),
+//    .O_AUDIO_B(ay_chb),
+//    .O_AUDIO_C(ay_chc),
+//    .I_IOA(columns),
+//    .O_IOA(),
+//    .O_IOA_OE_L(),
+//    .I_IOB(8'hFF),
+//    .O_IOB(),
+//    .O_IOB_OE_L(),
+//    .ENA(1'b1),
+//    .RESET_L(reset_n),
+//    .CLK(clk_for_crtc), // 1MHz
+//    .CLKREG(clk_reg)
+//  );
+
+  reg[2:0] ce4 = 1'd1;
+  reg pe1M;
+  always @(posedge ck16) begin
+	  ce4 <= ce4+1'd1;
+	  pe1M <= ~ce4[0] & ~ce4[1] & ~ce4[2];
+  end
+  
+  psg ay1 (
+     .clock(ck16),
+	  .sel(1'b1),
+	  .ce(pe1M),
+	  .reset(reset_n),
+	  .bdir(port_c_output[7]),
+	  .bc1(port_c_output[6]),
+	  .d(port_a_output),
+	  .q(port_a_input),
+	  .a(ay_cha),
+	  .b(ay_chb),
+	  .c(ay_chc),
+	  .mix(),
+     .ioad(columns),
+	  .ioaq(),
+	  .iobd(8'hFF),
+	  .iobq()
   );
+
 
   mixer mezclador (  
     .clk(ck16),

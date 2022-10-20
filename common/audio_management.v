@@ -19,7 +19,7 @@
 //
 //////////////////////////////////////////////////////////////////////////////////
 
-`define MSBI 8 // Most significant Bit of DAC input
+`define MSBI 14 // Most significant Bit of DAC input
 
 //This is a Delta-Sigma Digital to Analog Converter
 module dac (DACout, DACin, Clk, Reset);
@@ -59,30 +59,30 @@ module mixer (
   //--- SOUND SOURCES ---
   input wire mic,
   input wire ear,
-  input wire [7:0] ay_cha,
-  input wire [7:0] ay_chb,
-  input wire [7:0] ay_chc,
+  input wire [11:0] ay_cha,
+  input wire [11:0] ay_chb,
+  input wire [11:0] ay_chc,
   // --- OUTPUTs ---
   output wire audio_out_left,
   output wire audio_out_right
   );
 
   // Mixer for EAR and MIC
-  reg [8:0] beeper;
+  reg [12:0] beeper;
   always @* begin
-    beeper = 8'd0;
+    beeper = 12'd0;
     case ({ear,mic})
-      2'b00: beeper = 9'd0;
-      2'b01: beeper = 9'd16;
-      2'b10: beeper = 9'd32;
-      2'b11: beeper = 9'd48;
+      2'b00: beeper = 12'd0;
+      2'b01: beeper = 12'd64;
+      2'b10: beeper = 12'd128;
+      2'b11: beeper = 12'd192;
     endcase
   end
   
-  reg [8:0] mixleft = 9'h000;
-  reg [8:0] mixright = 9'h000;
+  reg [13:0] mixleft  = 14'h000;
+  reg [13:0] mixright = 14'h000;
   reg state = 1'b0;
-  // Se replica esta máquina de estados para el canal derecho.
+  // Se replica esta mquina de estados para el canal derecho.
   always @(posedge clk) begin
     state <= ~state;
     if (state == 1'b0) begin
