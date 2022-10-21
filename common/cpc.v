@@ -106,7 +106,7 @@ module cpc (
 
   // Sonido + cassette
   wire mic = port_c_output[5];
-  wire [13:0] ay_cha, ay_chb, ay_chc;
+  wire [11:0] ay_cha, ay_chb, ay_chc;
   
   // Seales desde el teclado
   wire kbd_reset, kbd_mreset, kbd_nmi;

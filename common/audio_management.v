@@ -19,7 +19,7 @@
 //
 //////////////////////////////////////////////////////////////////////////////////
 
-`define MSBI 14 // Most significant Bit of DAC input
+`define MSBI 12 // Most significant Bit of DAC input
 
 //This is a Delta-Sigma Digital to Analog Converter
 module dac (DACout, DACin, Clk, Reset);
@@ -79,8 +79,8 @@ module mixer (
     endcase
   end
   
-  reg [13:0] mixleft  = 14'h000;
-  reg [13:0] mixright = 14'h000;
+  reg [12:0] mixleft  = 12'h000;
+  reg [12:0] mixright = 12'h000;
   reg state = 1'b0;
   // Se replica esta mquina de estados para el canal derecho.
   always @(posedge clk) begin
