@@ -79,7 +79,7 @@ module tld_cpc (
     .CLK_OUT3(ck50)
   );
 
-  // Power on reset y configuración inicial
+  // Power on reset y configuracin inicial
   wire master_reset_n;
   wire vga_on, scanlines_on;
   config_retriever (
@@ -244,6 +244,7 @@ module tld_cpc (
     .host_divert_keyboard(host_divert_keyboard),
     .host_divert_sdcard(host_divert_sdcard),
 
+    .ear_in(),
     // tape interface
 //      .ear_in(micout),
 //      .ear_out(ear_in_sc),

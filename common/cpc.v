@@ -62,27 +62,26 @@ module cpc (
   output wire kbd_scandoubler
   );
   
-  // Señales del CRTC
+  // Seales del CRTC
 	wire vsync, hsync, dispen;
   wire [13:0] ma;
   wire [4:0] ra;
   wire[7:0] crtc_dout;
   wire crtc_oe_n;
 
-  // Señales del GA
+  // Seales del GA
   wire en244_n, cpu_n, romen_n, ramrd_n, mwe_n, ras_n, cas_n;
   wire[2:0] ram_bank;
 
-  // Señales del chip AY-3-8912
+  // Seales del chip AY-3-8912
   wire [7:0] ay_data_output;
-  wire ay_oe_n;
 
-  // Señales del gestor de memoria
+  // Seales del gestor de memoria
   wire [7:0] memory_dout;
   wire [7:0] data_to_ga;
   wire memory_oe_n;
 
-  // Señales del PPI
+  // Seales del PPI
   wire [7:0] configuration_bits = {ear, 2'b11, 1'b1 /* PAL 50Hz */, 3'b111 /* Amstrad */, vsync_processed};
   wire [7:0] ppi_dout;
   wire ppi_oe_n;
@@ -94,34 +93,28 @@ module cpc (
   wire [7:0] port_c_oe_n;
   wire [7:0] columns;
   
-  // Señales del FDC
+  // Seales del FDC
   wire nec765a_oe_n;
   wire[7:0] fdc_dout;
 
-  // esta señal es el resultado de procesar VSYNC desde el CRTC + un posible forzado del bit 0 del puerto B.
+  // esta seal es el resultado de procesar VSYNC desde el CRTC + un posible forzado del bit 0 del puerto B.
   wire vsync_processed = (port_b_oe_n[0] == 1'b0)? port_b_output[0] : vsync;
 
   // Latch de lo ultimo escrito en los puertos A, B y C
-  reg [7:0] port_a_input = 8'hFF;
-  reg [7:0] port_b_input = 8'hFF;
-  reg [7:0] port_c_input = 8'hFF;
-  always @(posedge clk_reg) begin
-    port_a_input <= (ay_oe_n == 1'b0)? ay_data_output : (port_a_output & ~port_a_oe_n) | (port_a_input & port_a_oe_n);
-    port_b_input <= (configuration_bits & port_b_oe_n) | ( (configuration_bits & port_b_output) & ~port_b_oe_n);
-    port_c_input <= (port_c_output & ~port_c_oe_n) | (port_c_input & port_c_oe_n);
-  end
+  wire [7:0] port_a_input; // = 8'hFF;
+ 
 
   // Sonido + cassette
   wire mic = port_c_output[5];
-  wire [7:0] ay_cha, ay_chb, ay_chc;
+  wire [11:0] ay_cha, ay_chb, ay_chc;
   
-  // Señales desde el teclado
+  // Seales desde el teclado
   wire kbd_reset, kbd_mreset, kbd_nmi;
 
-  // Dirección que forma el CRTC para leer la VRAM
+  // Direccin que forma el CRTC para leer la VRAM
   wire [15:0] vram_addr = {ma[13:12], ra[2:0], ma[9:0], cclk};
 
-  // Señales de la CPU  
+  // Seales de la CPU  
   wire [15:0] a;
   wire [7:0] cpu_dout;
   reg [7:0] cpu_din;
@@ -135,7 +128,7 @@ module cpc (
   wire iowr_falling_edge_n = ~(iowr_delayed & ~iowr_n);
 
   wire cclk, phi_n, clk_for_crtc, clk_cpu, clk_reg;
-  // primitiva de Xilinx para rutear una señal hacia un buffer global y convertirla en un reloj
+  // primitiva de Xilinx para rutear una seal hacia un buffer global y convertirla en un reloj
   BUFG buffcclk (
     .I(~cclk),
     .O(clk_for_crtc)
@@ -143,13 +136,13 @@ module cpc (
 
   // Antes de usar un reloj generado por el PLL, voy a probar si vale usando el que genera el GA
   BUFG buffclkcpu (
-    .I(phi_n),  // esto deberia estar negado pero por alguna razón, funciona sólo si no lo está.
+    .I(phi_n),  // esto deberia estar negado pero por alguna razn, funciona slo si no lo est.
     .O(clk_cpu)
   );
 
   assign clk_reg = ck16;
 
-  // Señal de reset, combinando reset power on + reset de teclado
+  // Seal de reset, combinando reset power on + reset de teclado
   wire reset_n = pown_reset_n & kbd_reset;
 
   always @* begin
@@ -186,11 +179,11 @@ module cpc (
     .dout(cpu_dout),
     .reset_n(reset_n && host_rom_initialised), 
     .clk(clk_cpu), 
-    .wait_n(ready), 
+    .wait_n(ready | (iorq_n & mreq_n)), 
     .int_n(int_n), 
     .nmi_n(kbd_nmi), 
     .busrq_n(1'b1), 
-    .di(cpu_din)
+	 .di(cpu_din)
   );
   
 	ga40010 gate_array (
@@ -264,11 +257,11 @@ module cpc (
     .O_PA(port_a_output),
     .O_PA_OE_L(port_a_oe_n),
 
-    .I_PB(port_b_input),
+    .I_PB(configuration_bits),
     .O_PB(port_b_output),
     .O_PB_OE_L(port_b_oe_n),
 
-    .I_PC(port_c_input),
+    .I_PC(8'hFF),
     .O_PC(port_c_output),
     .O_PC_OE_L(port_c_oe_n),
 
@@ -334,31 +327,61 @@ module cpc (
 		.pown_reset_n(pown_reset_n)
   );
 
-  YM2149 sonido_ay_3 (
-    .I_DA(port_a_input),
-    .O_DA(ay_data_output),
-    .O_DA_OE_L(ay_oe_n),
-    .I_A9_L(1'b0),
-    .I_A8(1'b1),
-    .I_BDIR(port_c_input[7]),  // era output
-    .I_BC2(1'b1),
-    .I_BC1(port_c_input[6]),   // era output
-    .I_SEL_L(1'b1),
-    .O_AUDIO(),
-    .O_AUDIO_A(ay_cha),
-    .O_AUDIO_B(ay_chb),
-    .O_AUDIO_C(ay_chc),
-    .I_IOA(columns),
-    .O_IOA(),
-    .O_IOA_OE_L(),
-    .I_IOB(8'hFF),
-    .O_IOB(),
-    .O_IOB_OE_L(),
-    .ENA(1'b1),
-    .RESET_L(reset_n),
-    .CLK(clk_for_crtc), // 1MHz
-    .CLKREG(clk_reg)
+
+
+
+//  YM2149 sonido_ay_3 (
+//    .I_DA(port_a_output),
+//    .O_DA(port_a_input),
+//    .O_DA_OE_L(),
+//    .I_A9_L(1'b0),
+//    .I_A8(1'b1),
+//    .I_BDIR(port_c_output[7]),  
+//    .I_BC2(1'b1),
+//    .I_BC1(port_c_output[6]),   
+//    .I_SEL_L(1'b1),
+//    .O_AUDIO(),
+//    .O_AUDIO_A(ay_cha),
+//    .O_AUDIO_B(ay_chb),
+//    .O_AUDIO_C(ay_chc),
+//    .I_IOA(columns),
+//    .O_IOA(),
+//    .O_IOA_OE_L(),
+//    .I_IOB(8'hFF),
+//    .O_IOB(),
+//    .O_IOB_OE_L(),
+//    .ENA(1'b1),
+//    .RESET_L(reset_n),
+//    .CLK(clk_for_crtc), // 1MHz
+//    .CLKREG(clk_reg)
+//  );
+
+  reg[2:0] ce4 = 1'd1;
+  reg pe1M;
+  always @(posedge ck16) begin
+	  ce4 <= ce4+1'd1;
+	  pe1M <= ~ce4[0] & ~ce4[1] & ~ce4[2];
+  end
+  
+  psg ay1 (
+     .clock(ck16),
+	  .sel(1'b1),
+	  .ce(pe1M),
+	  .reset(reset_n),
+	  .bdir(port_c_output[7]),
+	  .bc1(port_c_output[6]),
+	  .d(port_a_output),
+	  .q(port_a_input),
+	  .a(ay_cha),
+	  .b(ay_chb),
+	  .c(ay_chc),
+	  .mix(),
+     .ioad(columns),
+	  .ioaq(),
+	  .iobd(8'hFF),
+	  .iobq()
   );
+
 
   mixer mezclador (  
     .clk(ck16),

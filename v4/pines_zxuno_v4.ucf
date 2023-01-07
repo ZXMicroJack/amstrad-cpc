@@ -2,7 +2,8 @@
 #NET "clk14" PERIOD=56 ns;
 #NET "clk7" PERIOD=112 ns;
 #NET "clk3d5" PERIOD=224 ns;
-
+PIN "la_maquina/buffcclk.O" CLOCK_DEDICATED_ROUTE = FALSE;
+PIN "master_clocks/clkout2_buf.O" CLOCK_DEDICATED_ROUTE = FALSE;
 
 ############################################################################
 
