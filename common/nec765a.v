@@ -187,7 +187,7 @@ reg[1:0] fdcbusy = 2'b00;
 reg[7:0] intstat0 = 8'h00;
 reg[7:0] intstat1 = 8'h00;
 reg[1:0] rdy_fdd = 2'b00;
-wire not_ready[1:0] = {!disk_cr[CR_DISKIN1], !disk_cr[CR_DISKIN0]};
+wire[1:0] not_ready = {!disk_cr[CR_DISKIN1], !disk_cr[CR_DISKIN0]};
 
 reg[7:0] ins;
 
@@ -202,7 +202,7 @@ reg[7:0] sector_id = 8'hc1;
 reg[7:0] sector_size = 8'h02; // 512 bytes
 reg fault_fdd = 1'b0;
 
-wire trk0_fdd[1:0] = {cylinder[1] == 7'd0, cylinder[0] == 7'd0};
+wire[1:0] trk0_fdd = {cylinder[1] == 7'd0, cylinder[0] == 7'd0};
 reg side_fdd = 1'b0;
 reg sideselect_fdd = 1'b0;
 reg cm = 1'b0;
