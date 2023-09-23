@@ -49,44 +49,44 @@ module z80 (
   wire [7:0] d;
 
 
-//  z80_top_direct_n cpu_goran (
-//    .nM1(m1_n),
-//    .nMREQ(mreq_n),
-//    .nIORQ(iorq_n),
-//    .nRD(rd_n),
-//    .nWR(wr_n),
-//    .nRFSH(rfsh_n),
-//    .nHALT(halt_n),
-//    .nBUSACK(busak_n),
-//    .nWAIT(wait_n),
-//    .nINT(int_n),
-//    .nNMI(nmi_n),
-//    .nRESET(reset_n),
-//    .nBUSRQ(busrq_n),
-//    .CLK(clk),
-//    .A(A),
-//    .D(d)
-//);
+ z80_top_direct_n cpu_goran (
+   .nM1(m1_n),
+   .nMREQ(mreq_n),
+   .nIORQ(iorq_n),
+   .nRD(rd_n),
+   .nWR(wr_n),
+   .nRFSH(rfsh_n),
+   .nHALT(halt_n),
+   .nBUSACK(busak_n),
+   .nWAIT(wait_n),
+   .nINT(int_n),
+   .nNMI(nmi_n),
+   .nRESET(reset_n),
+   .nBUSRQ(busrq_n),
+   .CLK(clk),
+   .A(A),
+   .D(d)
+);
 
 
-  T80a_verilog TheCPU (
-    .RESET_n(reset_n),
-		.CLK_n(clk),
-		.WAIT_n(wait_n),
-		.INT_n(int_n),
-		.NMI_n(nmi_n),
-		.BUSRQ_n(busrq_n),
-		.M1_n(m1_n),
-		.MREQ_n(mreq_n),
-		.IORQ_n(iorq_n),
-		.RD_n(rd_n),
-		.WR_n(wr_n),
-		.RFSH_n(rfsh_n),
-		.HALT_n(halt_n),
-		.BUSAK_n(busak_n),
-		.A(A),
-		.D(d)
-	);
+//   T80a_verilog TheCPU (
+//     .RESET_n(reset_n),
+// 		.CLK_n(clk),
+// 		.WAIT_n(wait_n),
+// 		.INT_n(int_n),
+// 		.NMI_n(nmi_n),
+// 		.BUSRQ_n(busrq_n),
+// 		.M1_n(m1_n),
+// 		.MREQ_n(mreq_n),
+// 		.IORQ_n(iorq_n),
+// 		.RD_n(rd_n),
+// 		.WR_n(wr_n),
+// 		.RFSH_n(rfsh_n),
+// 		.HALT_n(halt_n),
+// 		.BUSAK_n(busak_n),
+// 		.A(A),
+// 		.D(d)
+// 	);
 	
   // Detector de OUT (C),0
   reg [2:0] state = 3'd0;

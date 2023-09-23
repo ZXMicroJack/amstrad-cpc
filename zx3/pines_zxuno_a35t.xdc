@@ -6,9 +6,8 @@ set_property IOSTANDARD LVCMOS33 [get_ports clk50mhz]
 #Leds y Botones
 set_property PACKAGE_PIN H13 [get_ports led]
 set_property IOSTANDARD LVCMOS33 [get_ports led]
-
-#set_property PACKAGE_PIN G15 [get_ports led_2]
-#set_property IOSTANDARD LVCMOS33 [get_ports led_2]
+set_property PACKAGE_PIN G15 [get_ports led2]
+set_property IOSTANDARD LVCMOS33 [get_ports led2]
 #set_property PACKAGE_PIN G15 [get_ports BTN]
 #set_property IOSTANDARD LVCMOS33 [get_ports BTN]
 #set_property PULLUP true [get_ports BTN]
@@ -126,6 +125,8 @@ set_property PACKAGE_PIN W1 [get_ports {sram_addr[17]}]
 set_property IOSTANDARD LVCMOS33 [get_ports {sram_addr[17]}]
 set_property PACKAGE_PIN V3 [get_ports {sram_addr[18]}]
 set_property IOSTANDARD LVCMOS33 [get_ports {sram_addr[18]}]
+set_property PACKAGE_PIN G2 [get_ports {sram_addr[19]}]
+set_property IOSTANDARD LVCMOS33 [get_ports {sram_addr[19]}]
 
 set_property PACKAGE_PIN N17 [get_ports {sram_data[0]}]
 set_property IOSTANDARD LVCMOS33 [get_ports {sram_data[0]}]
@@ -146,6 +147,12 @@ set_property IOSTANDARD LVCMOS33 [get_ports {sram_data[7]}]
 
 set_property PACKAGE_PIN N15 [get_ports sram_we_n]
 set_property IOSTANDARD LVCMOS33 [get_ports sram_we_n]
+set_property PACKAGE_PIN E1 [get_ports sram_oe_n]
+set_property IOSTANDARD LVCMOS33 [get_ports sram_oe_n]
+set_property PACKAGE_PIN U20 [get_ports sram_ub_n]
+set_property IOSTANDARD LVCMOS33 [get_ports sram_ub_n]
+set_property PACKAGE_PIN N4 [get_ports sram_lb_n]
+set_property IOSTANDARD LVCMOS33 [get_ports sram_lb_n]
 
 #SD
 set_property PACKAGE_PIN M6 [get_ports sd_clk]
@@ -290,3 +297,4 @@ set_property CONFIG_VOLTAGE 3.3 [current_design]
 set_property CFGBVS VCCO [current_design]
 
 set_property BITSTREAM.GENERAL.COMPRESS TRUE [current_design]
+set_property ALLOW_COMBINATORIAL_LOOPS TRUE [get_nets la_maquina/cpu/cpu_goran/alu_flags_/DFFE_inst_latch_sf_reg_0]

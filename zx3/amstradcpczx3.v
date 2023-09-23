@@ -36,15 +36,19 @@ module amstradcpczx3 (
 //   input wire joyfire1,
 //   input wire joyfire2,
   // Interface con la SRAM de 512KB
-  output wire [18:0] sram_addr,
+  output wire [19:0] sram_addr,
   inout wire [7:0] sram_data,
   output wire sram_we_n,
+  output wire sram_oe_n,
+  output wire sram_ub_n,
+  output wire sram_lb_n,
   //////// sdcard ////////
   output wire sd_cs_n,
   output wire sd_clk,
   output wire sd_mosi,
   input wire sd_miso,
-  output wire led
+  output wire led,
+  output wire led2
   );
 
   wire joyup;
@@ -63,7 +67,13 @@ module amstradcpczx3 (
   assign vga_r[5:0] = {r[2:0], 3'd0};
   assign vga_g[5:0] = {g[2:0], 3'd0};
   assign vga_b[5:0] = {b[2:0], 3'd0};
-  assign sram_addr[18:0] = sram_addr_tmp[18:0];
+  assign sram_addr[19:0] = sram_addr_tmp[19:0];
+  assign sram_oe_n = ~sram_we_n;
+//   assign sram_oe_n = (mreq_n == 1'b0 && rd_n == 1'b0) ? 1'b0 : 1'b1;
+
+  assign sram_lb_n = 1'b0;
+  assign sram_ub_n = 1'b1;
+
   
   // ctrl-module signals
   wire host_divert_keyboard;
@@ -181,7 +191,7 @@ module amstradcpczx3 (
 // 		.debug(debug),
 // 		.debug2(debug2)
   );
-//   assign led = host_rom_initialised;
+  assign led2 = host_rom_initialised;
 
   wire [7:0] riosd;
   wire [7:0] giosd;
