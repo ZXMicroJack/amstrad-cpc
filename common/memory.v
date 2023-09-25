@@ -87,11 +87,13 @@ module memory_cpc464 (
   end
   
   // Instanciamos la ROM, que de momento estará en BRAM
+`ifndef ZXTRES
   rom romcpc (
     .clk(clk),
     .a(cpu_addr[13:0]),
     .dout(data_from_rom)
   );
+`endif
 
   ram dram (
     .clk(clk),
@@ -111,7 +113,12 @@ module memory_cpc464 (
     .romwrite_addr(romwrite_addr),
     .rom_initialised(host_rom_initialised),
     // external roms
+`ifdef ZXTRES
+    .romread(cpu_n == 1'b0 && romen_n == 1'b0 && (external_rom_bank || internal_rom_bank)),
+    .lowerrom(internal_rom_bank),
+`else
     .romread(cpu_n == 1'b0 && romen_n == 1'b0 && external_rom_bank),
+`endif
     .rom_bank(rom_bank)
   );
 
@@ -129,6 +136,7 @@ module memory_cpc464 (
     data_to_cpu = 8'hFF;
     memory_oe_n = 1'b1;
 //     if (romen_n == 1'b0) begin
+`ifndef ZXTRES
     if (romen_n == 1'b0 && internal_rom_bank) begin
       data_to_cpu = data_from_rom;
       memory_oe_n = 1'b0;
@@ -137,6 +145,12 @@ module memory_cpc464 (
       data_to_cpu = latch_data_from_ram;
       memory_oe_n = 1'b0;
     end
+`else
+    if (ramrd_n == 1'b0 || romen_n == 1'b0) begin
+      data_to_cpu = latch_data_from_ram;
+      memory_oe_n = 1'b0;
+    end
+`endif
   end
 
 // -- cpcWiki
@@ -202,7 +216,11 @@ module memory_cpc464 (
   end
 
   // Receive ROM from control module
-	bootloader# (.CONFIG_ON_STARTUP(1), .ROM_LOCATION(19'h5c000), .ROM_END(16'h4000)) bootloader_inst(
+`ifdef ZXTRES
+  bootloader# (.CONFIG_ON_STARTUP(1), .ROM_LOCATION(19'h5c000), .ROM_END(16'h8000)) bootloader_inst(
+`else
+  bootloader# (.CONFIG_ON_STARTUP(1), .ROM_LOCATION(19'h5c000), .ROM_END(16'h4000)) bootloader_inst(
+`endif
 		.clk(clk),
 		.host_bootdata(host_bootdata),
 		.host_bootdata_ack(host_bootdata_ack),
@@ -216,6 +234,7 @@ module memory_cpc464 (
 
 endmodule
 
+`ifndef ZXTRES
 module rom ( // ROM de 32KB, conteniendo la lower ROM y la upper ROM 0
   input wire clk,
   input wire [13:0] a,
@@ -244,6 +263,7 @@ end
   always @(posedge clk)
     dout <= mem[a];
 endmodule
+`endif
 
 module ram (
   input wire clk,
@@ -266,6 +286,9 @@ module ram (
 	// external rom reading
 	input wire romread,
 	input wire[7:0] rom_bank
+`ifdef ZXTRES
+  ,input wire lowerrom
+`endif
   );
   
   // Aquí se decide cuándo la SRAM conmuta a bus de entrada o salida, según lo que se haga sea lectura o escritura
@@ -281,6 +304,9 @@ module ram (
 //     (reset_n == 1'b0)? 21'hZZZZZZ : addr;
     (reset_n == 1'b0)? 21'hZZZZZZ :
     !rom_initialised ? {2'b00,romwrite_addr} : 
+`ifdef ZXTRES
+    romread && lowerrom ? {2'b00, 1'b1, 4'h9, addr[13:0]} :
+`endif    
     romread ? {2'b00,1'b1,rom_bank[3:0] == 4'h7 ? 4'h7 : 4'h8,addr[13:0]} :
     addr;
   
