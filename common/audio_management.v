@@ -64,8 +64,13 @@ module mixer (
   input wire [7:0] ay_chb,
   input wire [7:0] ay_chc,
   // --- OUTPUTs ---
+`ifdef ZXTRES
+  output wire[8:0] audio_out_left,
+  output wire[8:0] audio_out_right
+`else
   output wire audio_out_left,
   output wire audio_out_right
+`endif
   );
 
   // Mixer for EAR and MIC
@@ -83,7 +88,7 @@ module mixer (
   reg [8:0] mixleft = 9'h000;
   reg [8:0] mixright = 9'h000;
   reg state = 1'b0;
-  // Se replica esta máquina de estados para el canal derecho.
+  // Se replica esta mï¿½quina de estados para el canal derecho.
   always @(posedge clk) begin
     state <= ~state;
     if (state == 1'b0) begin
@@ -96,7 +101,11 @@ module mixer (
     end
   end
        
-   // DACs
+`ifdef ZXTRES
+  assign audio_out_left[8:0] = mixleft[8:0];
+  assign audio_out_right[8:0] = mixright[8:0];
+`else
+// DACs
 	dac audio_dac_left (
 		.DACout(audio_out_left),
 		.DACin(mixleft),
@@ -110,5 +119,6 @@ module mixer (
 		.Clk(clk),
 		.Reset(!rst_n)
 		);
+`endif
 endmodule
    

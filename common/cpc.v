@@ -29,8 +29,13 @@ module cpc (
   output wire csync_pal,
   // Audio y EAR
   input wire ear,
+`ifdef ZXTRES
+  output wire[8:0] audio_out_left,
+  output wire[8:0] audio_out_right,
+`else
   output wire audio_out_left,
   output wire audio_out_right,
+`endif
   // Teclado PS/2
   input wire clkps2,
   input wire dataps2,
@@ -59,30 +64,33 @@ module cpc (
   output wire[31:0] debug,
   output wire[31:0] debug2,
   output wire mono,
+`ifdef ZXTRES
+  output wire kbd_mreset,
+`endif
   output wire kbd_scandoubler
   );
   
-  // Señales del CRTC
+  // Seï¿½ales del CRTC
 	wire vsync, hsync, dispen;
   wire [13:0] ma;
   wire [4:0] ra;
   wire[7:0] crtc_dout;
   wire crtc_oe_n;
 
-  // Señales del GA
+  // Seï¿½ales del GA
   wire en244_n, cpu_n, romen_n, ramrd_n, mwe_n, ras_n, cas_n;
   wire[2:0] ram_bank;
 
-  // Señales del chip AY-3-8912
+  // Seï¿½ales del chip AY-3-8912
   wire [7:0] ay_data_output;
   wire ay_oe_n;
 
-  // Señales del gestor de memoria
+  // Seï¿½ales del gestor de memoria
   wire [7:0] memory_dout;
   wire [7:0] data_to_ga;
   wire memory_oe_n;
 
-  // Señales del PPI
+  // Seï¿½ales del PPI
   wire [7:0] configuration_bits = {ear, 2'b11, 1'b1 /* PAL 50Hz */, 3'b111 /* Amstrad */, vsync_processed};
   wire [7:0] ppi_dout;
   wire ppi_oe_n;
@@ -94,11 +102,11 @@ module cpc (
   wire [7:0] port_c_oe_n;
   wire [7:0] columns;
   
-  // Señales del FDC
+  // Seï¿½ales del FDC
   wire nec765a_oe_n;
   wire[7:0] fdc_dout;
 
-  // esta señal es el resultado de procesar VSYNC desde el CRTC + un posible forzado del bit 0 del puerto B.
+  // esta seï¿½al es el resultado de procesar VSYNC desde el CRTC + un posible forzado del bit 0 del puerto B.
   wire vsync_processed = (port_b_oe_n[0] == 1'b0)? port_b_output[0] : vsync;
 
   // Latch de lo ultimo escrito en los puertos A, B y C
@@ -115,13 +123,16 @@ module cpc (
   wire mic = port_c_output[5];
   wire [7:0] ay_cha, ay_chb, ay_chc;
   
-  // Señales desde el teclado
-  wire kbd_reset, kbd_mreset, kbd_nmi;
+  // Seï¿½ales desde el teclado
+  wire kbd_reset, kbd_nmi;
+`ifndef ZXTRES
+  wire kbd_mreset;
+`endif
 
-  // Dirección que forma el CRTC para leer la VRAM
+  // Direcciï¿½n que forma el CRTC para leer la VRAM
   wire [15:0] vram_addr = {ma[13:12], ra[2:0], ma[9:0], cclk};
 
-  // Señales de la CPU  
+  // Seï¿½ales de la CPU  
   wire [15:0] a;
   wire [7:0] cpu_dout;
   reg [7:0] cpu_din;
@@ -135,7 +146,7 @@ module cpc (
   wire iowr_falling_edge_n = ~(iowr_delayed & ~iowr_n);
 
   wire cclk, phi_n, clk_for_crtc, clk_cpu, clk_reg;
-  // primitiva de Xilinx para rutear una señal hacia un buffer global y convertirla en un reloj
+  // primitiva de Xilinx para rutear una seï¿½al hacia un buffer global y convertirla en un reloj
   BUFG buffcclk (
     .I(~cclk),
     .O(clk_for_crtc)
@@ -143,13 +154,13 @@ module cpc (
 
   // Antes de usar un reloj generado por el PLL, voy a probar si vale usando el que genera el GA
   BUFG buffclkcpu (
-    .I(phi_n),  // esto deberia estar negado pero por alguna razón, funciona sólo si no lo está.
+    .I(phi_n),  // esto deberia estar negado pero por alguna razï¿½n, funciona sï¿½lo si no lo estï¿½.
     .O(clk_cpu)
   );
 
   assign clk_reg = ck16;
 
-  // Señal de reset, combinando reset power on + reset de teclado
+  // Seï¿½al de reset, combinando reset power on + reset de teclado
   wire reset_n = pown_reset_n & kbd_reset;
 
   always @* begin
@@ -296,10 +307,12 @@ module cpc (
     .kbd_scandoubler(kbd_scandoubler)
   );
 
+`ifndef ZXTRES
   multiboot vuelta_bios (
     .clk_icap(ck16),   // WARNING: this clock must not be greater than 20MHz (50ns period)
     .boot(kbd_mreset)
   );
+`endif
 
   memory_cpc464 memory (
     .clk(ck16),

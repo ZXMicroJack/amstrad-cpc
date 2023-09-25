@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 `default_nettype none
-
+// `define DPACTIVE
 //////////////////////////////////////////////////////////////////////////////////
 // Company: AZXUNO
 // Engineer: Miguel Angel Rodriguez Jodar
@@ -16,15 +16,15 @@
 
 module amstradcpczx3 (
   input wire clk50mhz,
-  output wire [5:0] vga_r,
-  output wire [5:0] vga_g,
-  output wire [5:0] vga_b,
-  output wire hsync,  // hsync en el pineado de la FPGA
-  output wire vsync,
+  output wire [7:0] vga_r,
+  output wire [7:0] vga_g,
+  output wire [7:0] vga_b,
+  output wire vga_hs,  // hsync en el pineado de la FPGA
+  output wire vga_vs,
   // Audio y EAR
-//   input wire ear,
-  output wire audio_out_left,
-  output wire audio_out_right,
+  input wire ear,
+  output wire audio_left,
+  output wire audio_right,
   // Teclado PS/2
   input wire clkps2,
   input wire dataps2,
@@ -48,25 +48,46 @@ module amstradcpczx3 (
   output wire sd_mosi,
   input wire sd_miso,
   output wire led,
-  output wire led2
+  output wire led2,
+  
+`ifdef DPACTIVE
+  output wire i2s_bclk,
+  output wire i2s_lrclk,
+  output wire i2s_dout,
+  output wire dp_tx_lane_p,
+  output wire dp_tx_lane_n,
+  input wire  dp_refclk_p,
+  input wire  dp_refclk_n,
+  input wire  dp_tx_hp_detect,
+  inout wire  dp_tx_auxch_tx_p,
+  inout wire  dp_tx_auxch_tx_n,
+  inout wire  dp_tx_auxch_rx_p,
+  inout wire  dp_tx_auxch_rx_n,   
+`endif
+  input wire joy_data,
+  output wire joy_clk,
+  output wire joy_load_n
   );
 
-  wire joyup;
-  wire joydown;
-  wire joyleft;
-  wire joyright;
-  wire joyfire1;
-  wire joyfire2;
-  wire ear;
+  wire joy1up;
+  wire joy1down;
+  wire joy1left;
+  wire joy1right;
+  wire joy1fire1;
+  wire joy1fire2;
+  wire[8:0] audio_out_left;
+  wire[8:0] audio_out_right;
 
   wire [2:0] r;
   wire [2:0] g;
   wire [2:0] b;
   wire [20:0] sram_addr_tmp;
 
-  assign vga_r[5:0] = {r[2:0], 3'd0};
-  assign vga_g[5:0] = {g[2:0], 3'd0};
-  assign vga_b[5:0] = {b[2:0], 3'd0};
+`ifndef DPACTIVE
+  assign vga_r[7:0] = {r[2:0], 5'd0};
+  assign vga_g[7:0] = {g[2:0], 5'd0};
+  assign vga_b[7:0] = {b[2:0], 5'd0};
+`endif
   assign sram_addr[19:0] = sram_addr_tmp[19:0];
   assign sram_oe_n = ~sram_we_n;
 //   assign sram_oe_n = (mreq_n == 1'b0 && rd_n == 1'b0) ? 1'b0 : 1'b1;
@@ -82,6 +103,7 @@ module amstradcpczx3 (
   wire[31:0] disk_sr;
   wire[31:0] disk_cr;
   wire disk_data_clkout, disk_data_clkin;
+  wire kbd_mreset;
  
   wire red, red_oe;
   wire green, green_oe;
@@ -103,17 +125,18 @@ module amstradcpczx3 (
   );
 
   // Power on reset y configuración inicial
-  wire master_reset_n;
-  wire vga_on, scanlines_on;
-  config_retriever (
-    .clk(ck16),
-    .sram_addr(sram_addr_tmp),
-    .sram_data(sram_data),
-    .sram_we_n(sram_we_n),
-    .pwon_reset_n(master_reset_n),
-    .vga_on(vga_on),
-    .scanlines_on(scanlines_on)
-  );
+//   wire master_reset_n;
+//   wire vga_on, scanlines_on;
+  wire vga_on = 1'b1, scanlines_on = 1'b0;
+//   config_retriever (
+//     .clk(ck16),
+//     .sram_addr(sram_addr_tmp),
+//     .sram_data(sram_data),
+//     .sram_we_n(sram_we_n),
+//     .pwon_reset_n(master_reset_n),
+//     .vga_on(vga_on),
+//     .scanlines_on(scanlines_on)
+//   );
 
   
   
@@ -142,7 +165,7 @@ module amstradcpczx3 (
   
   cpc la_maquina (
     .ck16(ck16),
-    .pown_reset_n(master_reset_n),
+    .pown_reset_n(1'b1),
     .red(red),
     .red_oe(red_oe),
     .green(green),
@@ -159,12 +182,12 @@ module amstradcpczx3 (
     .audio_out_right(audio_out_right),
     .clkps2(host_divert_keyboard ? 1'b1 : clkps2),
     .dataps2(host_divert_keyboard ? 1'b1 : dataps2),
-    .joyup(joyup),
-    .joydown(joydown),
-    .joyleft(joyleft),
-    .joyright(joyright),
-    .joyfire1(joyfire1),
-    .joyfire2(joyfire2),
+    .joyup(joy1up),
+    .joydown(joy1down),
+    .joyleft(joy1left),
+    .joyright(joy1right),
+    .joyfire1(joy1fire1),
+    .joyfire2(joy1fire2),
     .sram_addr(sram_addr_tmp),
     .sram_data(sram_data),
     .sram_we_n(sram_we_n),
@@ -184,7 +207,8 @@ module amstradcpczx3 (
 		.host_bootdata(host_bootdata),
 		.host_bootdata_ack(host_bootdata_ack),
 		.host_bootdata_req(host_bootdata_req),
-		.host_rom_initialised(host_rom_initialised)
+		.host_rom_initialised(host_rom_initialised),
+		.kbd_mreset(kbd_mreset)
 		//,
 		
 		// debug
@@ -205,6 +229,7 @@ module amstradcpczx3 (
       vga_toggle <= ~vga_toggle;
   end
 
+`ifndef DPACTIVE
 	vga_scandoubler #(.CLKVIDEO(16000)) salida_vga (
 		.clkvideo(ck16),
 		.clkvga(ck32),
@@ -219,9 +244,10 @@ module amstradcpczx3 (
 		.ro(r),
 		.go(g),
 		.bo(b),
-		.hsync(hsync),
-		.vsync(vsync)
+		.hsync(vga_hs),
+		.vsync(vga_vs)
    );	 
+`endif
 
   wire osd_window;
   wire osd_pixel;
@@ -311,6 +337,7 @@ module amstradcpczx3 (
 
    wire[7:0] vga_red_i, vga_green_i, vga_blue_i;
 
+`ifndef DPACTIVE
    wire[2:0] ri2;
    wire[2:0] gi2;
    wire[2:0] bi2;
@@ -323,11 +350,17 @@ module amstradcpczx3 (
       .bo(bi2[2:0]),
       .mono(mono)
    );
-   
+`endif
+
+`ifndef DPACTIVE
    assign vga_red_i = {ri2[2:0], 5'h0};
    assign vga_green_i = {gi2[2:0], 5'h0};
    assign vga_blue_i = {bi2[2:0], 5'h0};
-   
+`else
+   assign vga_red_i = {ri[2:0], 5'h0};
+   assign vga_green_i = {gi[2:0], 5'h0};
+   assign vga_blue_i = {bi[2:0], 5'h0};
+`endif
    // OSD Overlay
    OSD_Overlay overlay (
 //      .clk(clk48),
@@ -345,10 +378,111 @@ module amstradcpczx3 (
      .window_out( ),
      .scanline_ena(1'b0)
    );
-   
-   
+
+  
+//   zxtres_wrapper #(.CLKVIDEO(16)) cosas_del_zxtres (
+//   .clkvideo(ck16),                      // reloj de pixel de la señal de video original (generada por el core)
+
+
+`ifdef DPACTIVE
+  zxtres_wrapper #(.CLKVIDEO(16)) cosas_del_zxtres (
+  .clkvideo(ck16),                      // reloj de pixel de la señal de video original (generada por el core)
+  .enclkvideo(1'b1),                   // si el reloj anterior es mayor que el reloj de pixel, y se necesita un clock enable
+  .clkpalntsc(1'b0),                // Reloj de 100 MHz para la generacion del reloj de color PAL o NTSC
+  .reset_n(1'b1),                   // Reset de todo el módulo
+//   .reboot_fpga(kbd_mreset),
+  ///////////////////////////////////////////////////////////////////////////////////////////////////////////
+  .video_output_sel(vga_on ^ vga_toggle),          // 0: RGB 15kHz + DP   1: VGA + DP
+  .disable_scanlines(~scanlines_on),  // 0: emular scanlines (cuidado con el policía del retro!)  1: sin scanlines
+  .monochrome_sel(mono ? 2'd1 : 2'd0),   // 0 : RGB, 1: fósforo verde, 2: fósforo ámbar, 3: escala de grises
+//   .interlace_mode(interlace_mode),
+//   .field(campo_imagen),
+//   .interlaced_image(interlaced_image),
+//   .ad724_modo(color_mode),                // Modo de video para el reloj de color. 0 : PAL, 1: NTSC
+//   .ad724_clken(enable_gencolorclk),       // Habilita el uso del generador interno de CLK de color
+
+//   .disable_scaneffect(~scanlines_on),
+// 		.ri(riosd[7:5]),
+// 		.gi(giosd[7:5]),
+// 		.bi(biosd[7:5]),
+// 		.hsync_ext_n(hsync_pal),
+// 		.vsync_ext_n(vsync_pal),
+//     .csync_ext_n(csync_pal),
+// 		.ro(r),
+// 		.go(g),
+// 		.bo(b),
+// 		.hsync(hsync),
+// 		.vsync(vsync)
+
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//   .ri({ri[2:0],5'd0}),            // RGB de 24 bits aunque  
+//   .gi({gi[2:0],5'd0}),            // después haya que guardar 
+//   .bi({bi[2:0],5'd0}),            // menos bits (dep. de la BRAM usada)
+  .ri(riosd[7:0]),
+  .gi(giosd[7:0]),
+  .bi(biosd[7:0]),
+  .hsync_ext_n(hsync_pal),  // Sincronismo horizontal y vertical separados. Los necesito separados para poder, dentro del módulo
+  .vsync_ext_n(vsync_pal),  // medir cuándo comienza y termina un scan y un frame, y así centrar la imagen en el framebuffer
+  .csync_ext_n(csync_pal),  // entrada de sincronismo compuesto de la señal original
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+//   .ula_mode(ula_mode),     // Señales específicas para el uso de este
+//   .ula_hcont(ula_hcont),   // core de ZX Spectrum. Estas señales son las
+//   .ula_vcont(ula_vcont),   // que sincronizan la ULA con el framescaler
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////    
+  .audio_l({audio_out_left[8:0], 7'd0}),
+  .audio_r({audio_out_right[8:0], 7'd0}),
+  .i2s_bclk(i2s_bclk),
+  .i2s_lrclk(i2s_lrclk),
+  .i2s_dout(i2s_dout),
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  .ro(vga_r),         // Salida RGB de VGA 
+  .go(vga_g),         // o de 15 kHz, según el valor
+  .bo(vga_b),         // de video_output_sel
+  .hsync(vga_hs),     // Para RGB 15 kHz, aqui estará el sincronismo compuesto
+  .vsync(vga_vs),     // Para RGB 15 kHz, de momento se queda al valor 1, pero aquí luego irá el reloj de color x4
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  .sd_audio_l(audio_left),
+  .sd_audio_r(audio_right),
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  .joy_data(joy_data),
+  .joy_latch_megadrive(1'b1),
+  .joy_clk(joy_clk),
+  .joy_load_n(joy_load_n),
+  .joy1up(joy1up),
+  .joy1down(joy1down),
+  .joy1left(joy1left),
+  .joy1right(joy1right),
+  .joy1fire1(joy1fire1),
+  .joy1fire2(joy1fire2),
+//   .joy1fire3(joy1fire3),
+  .joy1start(),
+//   .joy2up(joy2up),
+//   .joy2down(joy2down),
+//   .joy2left(joy2left),
+//   .joy2right(joy2right),
+//   .joy2fire1(joy2fire1),
+//   .joy2fire2(joy2fire2),
+//   .joy2fire3(),
+//   .joy2start(),    
+  ////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  .dp_tx_lane_p(dp_tx_lane_p),          // De los dos lanes de la Artix 7, solo uso uno.
+  .dp_tx_lane_n(dp_tx_lane_n),          // Cada lane es una señal diferencial. Esta es la parte negativa.
+  .dp_refclk_p(dp_refclk_p),            // Reloj de referencia para los GPT. Siempre es de 135 MHz
+  .dp_refclk_n(dp_refclk_n),            // El reloj también es una señal diferencial.
+  .dp_tx_hp_detect(dp_tx_hp_detect),    // Indica que se ha conectado un monitor DP. Arranca todo el proceso de entrenamiento
+  .dp_tx_auxch_tx_p(dp_tx_auxch_tx_p),  // Señal LVDS de salida (transmisión)
+  .dp_tx_auxch_tx_n(dp_tx_auxch_tx_n),  // del canal AUX. En alta impedancia durante la recepción
+  .dp_tx_auxch_rx_p(dp_tx_auxch_rx_p),  // Señal LVDS de entrada (recepción)
+  .dp_tx_auxch_rx_n(dp_tx_auxch_rx_n),   // del canal AUX. Siempre en alta impedancia ya que por aquí no se transmite nada.
+  /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+  .dp_ready(),
+  .dp_heartbeat()
+  );
+`endif
+
 endmodule
 
+`ifndef DPACTIVE
 module greenscreen(
       input wire[2:0] ri,
       input wire[2:0] gi,
@@ -410,3 +544,4 @@ module greenscreen(
     end
 
 endmodule
+`endif
