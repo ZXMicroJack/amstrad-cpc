@@ -162,10 +162,11 @@ module amstradcpczx3 (
   wire[31:0] debug;
   wire[31:0] debug2;
   wire kbd_scandoubler;
+  wire pwon_reset;
   
   cpc la_maquina (
     .ck16(ck16),
-    .pown_reset_n(1'b1),
+    .pown_reset_n(~pwon_reset),
     .red(red),
     .red_oe(red_oe),
     .green(green),
@@ -263,8 +264,7 @@ module amstradcpczx3 (
 //     always @(posedge clk390k625)
 //     assign led = sd_cs_n ? 1'b0 : 1'b1;
 //   assign led = mono;
-
-  CtrlModule#(.USE_UART(0), .USE_TAPE(0)) MyCtrlModule (
+  CtrlModule#(.USE_UART(0), .USE_TAPE(0), .ROMSIZE_BITS(13)) MyCtrlModule (
 //     .clk(clk6),
 //     .clk26(clk48),
     .clk(ck16),
@@ -385,13 +385,13 @@ module amstradcpczx3 (
 
 
 `ifdef DPACTIVE
-  zxtres_wrapper #(.CLKVIDEO(16)) cosas_del_zxtres (
+  zxtres_wrapper #(.CLKVIDEO(16), .HSTART(207), .VSTART(46)) cosas_del_zxtres (
   .clkvideo(ck16),                      // reloj de pixel de la señal de video original (generada por el core)
   .enclkvideo(1'b1),                   // si el reloj anterior es mayor que el reloj de pixel, y se necesita un clock enable
   .clkpalntsc(1'b0),                // Reloj de 100 MHz para la generacion del reloj de color PAL o NTSC
   .reset_n(1'b1),                   // Reset de todo el módulo
-//   .reboot_fpga(kbd_mreset),
-  ///////////////////////////////////////////////////////////////////////////////////////////////////////////
+  .reboot_fpga(~kbd_mreset),
+  .poweron_reset(pwon_reset), ///////////////////////////////////////////////////////////////////////////////////////////////////////////
   .video_output_sel(vga_on ^ vga_toggle),          // 0: RGB 15kHz + DP   1: VGA + DP
   .disable_scanlines(~scanlines_on),  // 0: emular scanlines (cuidado con el policía del retro!)  1: sin scanlines
   .monochrome_sel(mono ? 2'd1 : 2'd0),   // 0 : RGB, 1: fósforo verde, 2: fósforo ámbar, 3: escala de grises
@@ -421,6 +421,9 @@ module amstradcpczx3 (
   .ri(riosd[7:0]),
   .gi(giosd[7:0]),
   .bi(biosd[7:0]),
+//   .ri({riosd[7:5],5'd0}),
+//   .gi({giosd[7:5],5'd0}),
+//   .bi({biosd[7:5],5'd0}),
   .hsync_ext_n(hsync_pal),  // Sincronismo horizontal y vertical separados. Los necesito separados para poder, dentro del módulo
   .vsync_ext_n(vsync_pal),  // medir cuándo comienza y termina un scan y un frame, y así centrar la imagen en el framebuffer
   .csync_ext_n(csync_pal),  // entrada de sincronismo compuesto de la señal original

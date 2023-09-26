@@ -36,6 +36,33 @@ This supports:
   copy protected images at present - WIP.  Maximum 80 tracks 10 sectors and up to 839.5k image size.
 - Two disk drives.
 
+SRAM Memory Map
+---------------
+5C000 - AMSDOS
+60000 - BASIC1-1
+64000 - OS6128
+1C000 - RAM PAGE 7
+18000 - RAM PAGE 6
+14000 - RAM PAGE 5
+10000 - RAM PAGE 4
+0C000 - RAM PAGE 3
+08000 - RAM PAGE 2
+04000 - RAM PAGE 1
+00000 - RAM PAGE 0
+ROM
+[20:19] = 00
+[18] = 1
+[17:14] = rom (page 7 if rom_page == 7 or 8 otherwise)
+[13:0] = addr[13:0]
+
+RAM
+[20:18] = 000
+[17:14] = ram_page[3:0]
+[31:0] = addr[13:0]
+
+ROMS loaded at 5c000, ending at 64000
+
+
 Known non-working Games
 -----------------------
 - DDLE

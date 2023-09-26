@@ -89,20 +89,6 @@
   <FileSets Version="1" Minor="31">
     <FileSet Name="sources_1" Type="DesignSrcs" RelSrcDir="$PSRCDIR/sources_1" RelGenDir="$PGENDIR/sources_1">
       <Filter Type="Srcs"/>
-      <File Path="$PPRDIR/../zxtres_wrapper/zx3w/zxtres_wrapper_a200t.v">
-        <FileInfo>
-          <Attr Name="UsedIn" Val="synthesis"/>
-          <Attr Name="UsedIn" Val="implementation"/>
-          <Attr Name="UsedIn" Val="simulation"/>
-        </FileInfo>
-      </File>
-      <File Path="$PPRDIR/../zxtres_wrapper/zx3w/zxtres_wrapper_a100t.v">
-        <FileInfo>
-          <Attr Name="UsedIn" Val="synthesis"/>
-          <Attr Name="UsedIn" Val="implementation"/>
-          <Attr Name="UsedIn" Val="simulation"/>
-        </FileInfo>
-      </File>
       <File Path="$PPRDIR/../zxtres_wrapper/zx3w/zxtres_wrapper.v">
         <FileInfo>
           <Attr Name="UsedIn" Val="synthesis"/>
@@ -155,12 +141,6 @@
         </FileInfo>
       </File>
       <File Path="$PPRDIR/../../../zx3/zx3ctrl/updatecore/CtrlModule/CtrlModule/RTL/OnScreenDisplay.vhd">
-        <FileInfo>
-          <Attr Name="UsedIn" Val="synthesis"/>
-          <Attr Name="UsedIn" Val="simulation"/>
-        </FileInfo>
-      </File>
-      <File Path="$PPRDIR/../../../zx3/zx3ctrl/updatecore/CtrlModule/CtrlModule/RTL/OSD_Overlay.vhd">
         <FileInfo>
           <Attr Name="UsedIn" Val="synthesis"/>
           <Attr Name="UsedIn" Val="simulation"/>
@@ -824,13 +804,6 @@
         </FileInfo>
       </File>
       <File Path="$PPRDIR/../common/az80/z80_top_direct_n.v">
-        <FileInfo>
-          <Attr Name="UsedIn" Val="synthesis"/>
-          <Attr Name="UsedIn" Val="implementation"/>
-          <Attr Name="UsedIn" Val="simulation"/>
-        </FileInfo>
-      </File>
-      <File Path="$PPRDIR/../zxtres_wrapper/zx3w/zxtres_wrapper_a35t.v">
         <FileInfo>
           <Attr Name="UsedIn" Val="synthesis"/>
           <Attr Name="UsedIn" Val="implementation"/>
