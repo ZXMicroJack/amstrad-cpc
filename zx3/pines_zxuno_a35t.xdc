@@ -301,7 +301,7 @@ set_property IOSTANDARD LVCMOS33 [get_ports fatal_error]
 create_property iob port -type string
 
 # Contraints de tiempo
-create_clock -period 20.000 -name sys_clk_i [get_ports sys_clk_i]
+create_clock -period 20.000 -name clk50mhz [get_ports clk50mhz]
 
 set_property IOB TRUE [all_inputs]
 set_property IOB TRUE [all_outputs]

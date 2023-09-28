@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 `default_nettype none
-// `define DPACTIVE
+`define DPACTIVE
 //////////////////////////////////////////////////////////////////////////////////
 // Company: AZXUNO
 // Engineer: Miguel Angel Rodriguez Jodar
