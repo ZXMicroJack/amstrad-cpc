@@ -1,6 +1,6 @@
 `timescale 1ns / 1ps
 `default_nettype none
-`define DPACTIVE
+// `define DPACTIVE
 //////////////////////////////////////////////////////////////////////////////////
 // Company: AZXUNO
 // Engineer: Miguel Angel Rodriguez Jodar
@@ -49,11 +49,11 @@ module amstradcpczx3 (
   input wire sd_miso,
   output wire led,
   output wire led2,
-  
-`ifdef DPACTIVE
   output wire i2s_bclk,
   output wire i2s_lrclk,
   output wire i2s_dout,
+  
+`ifdef DPACTIVE
   output wire dp_tx_lane_p,
   output wire dp_tx_lane_n,
   input wire  dp_refclk_p,
@@ -481,9 +481,60 @@ module amstradcpczx3 (
   .dp_ready(),
   .dp_heartbeat()
   );
+`else
+  return_to_core1 reset_total (
+    .clk(ck16),
+    .boot_core(~kbd_mreset)
+  );
+
+  sigma_delta_codec sdcodec (
+    .clk(ck16),
+    .audio_l({audio_out_left[8:0], 7'd0}),
+    .audio_r({audio_out_right[8:0], 7'd0}),
+    .sd_audio_l(audio_left),
+    .sd_audio_r(audio_right)
+  );
+
+  i2s_sound #(.CLKMHZ(16)) i2scodec (
+    .clk(ck16),
+    .audio_l({audio_out_left[8:0], 7'd0}),
+    .audio_r({audio_out_right[8:0], 7'd0}),
+    .i2s_bclk(i2s_bclk),
+    .i2s_lrclk(i2s_lrclk),
+    .i2s_dout(i2s_dout)
+  );
+
+//////////////////////////////////////////////////////
+
+  joydecoder decodificador_joysticks (
+    .clk(ck16),
+    .joy_data(joy_data),
+    .joy_latch_megadrive(1'b1),
+    .joy_clk(joy_clk),
+    .joy_load_n(joy_load_n),
+    .joy1up(joy1up),
+    .joy1down(joy1down),
+    .joy1left(joy1left),
+    .joy1right(joy1right),
+    .joy1fire1(joy1fire1),
+    .joy1fire2(joy1fire2),
+    .joy1fire3(),
+    .joy1start(),
+    .joy2up(),
+    .joy2down(),
+    .joy2left(),
+    .joy2right(),
+    .joy2fire1(),
+    .joy2fire2(),
+    .joy2fire3(),
+    .joy2start()
+  );
 `endif
 
 endmodule
+
+
+
 
 `ifndef DPACTIVE
 module greenscreen(
