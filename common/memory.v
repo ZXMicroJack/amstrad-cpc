@@ -17,13 +17,13 @@
 module memory_cpc464 (
   input wire clk,
   input wire reset_n,
-  // Señales desde la CPU
+  // Seï¿½ales desde la CPU
   input wire [15:0] cpu_addr,
   input wire mreq_n,
   input wire iorq_n,
   input wire rd_n,
   input wire wr_n,
-  // Señales desde el GA/CRTC
+  // Seï¿½ales desde el GA/CRTC
   input wire [15:0] vram_addr,
   input wire ready,
   input wire cpu_n,
@@ -40,7 +40,12 @@ module memory_cpc464 (
   output reg [7:0] data_to_ga,
   // Interface con la SRAM de 512KB
   output wire [20:0] sram_addr,
+`ifdef ZXTRES
+  output wire [7:0] sram_data_to_chip,
+  input wire [7:0] sram_data_from_chip,
+`else
   inout wire [7:0] sram_data,
+`endif
   output wire sram_we_n,
   // Boot data from control-module
   input wire[2:0] ram_bank,
@@ -56,10 +61,10 @@ module memory_cpc464 (
   wire romwrite_wr;
   wire[18:0] romwrite_addr;
 
-  // De momento, este manejador va a ser la cosa más simple del mundo, ya que sólo implementaré la página base
-  // o sea, la memoria de un CPC 464. Las dos ROMs estarán en BRAM en la FPGA
+  // De momento, este manejador va a ser la cosa mï¿½s simple del mundo, ya que sï¿½lo implementarï¿½ la pï¿½gina base
+  // o sea, la memoria de un CPC 464. Las dos ROMs estarï¿½n en BRAM en la FPGA
 
-  // De la CPC Wiki, info técnica sobre cómo mapear las ROMs:
+  // De la CPC Wiki, info tï¿½cnica sobre cï¿½mo mapear las ROMs:
   // The ROM Bank Number is not stored anywhere inside of the CPC. Instead, peripherals must watch the bus for 
   // writes to Port DFxxh, check if the Bank Number matches the Number where they want to map their ROM to, 
   // and memorize the result by setting/clearing a flipflop accordingly (eg. a 74LS74).
@@ -86,7 +91,7 @@ module memory_cpc464 (
       rom_bank[7:0] <= data_from_cpu[7:0];
   end
   
-  // Instanciamos la ROM, que de momento estará en BRAM
+  // Instanciamos la ROM, que de momento estarï¿½ en BRAM
 `ifndef ZXTRES
   rom romcpc (
     .clk(clk),
@@ -105,7 +110,12 @@ module memory_cpc464 (
     .din(data_from_cpu),
     .dout(data_from_ram),
     .sram_addr(sram_addr),
+`ifdef ZXTRES
+    .sram_data_to_chip(sram_data_to_chip),
+    .sram_data_from_chip(sram_data_from_chip),
+`else
     .sram_data(sram_data),
+`endif
     .sram_we_n(sram_we_n),
     // boot roms
     .romwrite_data(romwrite_data),
@@ -129,7 +139,7 @@ module memory_cpc464 (
       latch_data_from_ram = data_from_ram;
   end
   
-  // Aqui se decide qué cosa ve la CPU, si un dato de ROM o de RAM
+  // Aqui se decide quï¿½ cosa ve la CPU, si un dato de ROM o de RAM
   wire internal_rom_bank = cpu_addr[15:14] == 2'b00;
   wire external_rom_bank = cpu_addr[15:14] == 2'b11;
   always @* begin
@@ -195,7 +205,7 @@ module memory_cpc464 (
     endcase
   end
 
-  // Aquí se decide qué cosa ve la RAM, si una dirección de CPU o de la Gate Array
+  // Aquï¿½ se decide quï¿½ cosa ve la RAM, si una direcciï¿½n de CPU o de la Gate Array
   always @* begin
     if (cpu_n == 1'b0)
       dram_addr = 
@@ -207,7 +217,7 @@ module memory_cpc464 (
       dram_addr = {5'b00000, vram_addr};
   end
       
-  // Aquí se decide cuando se le da el bus de datos a la GA. Es el transceiver IC115
+  // Aquï¿½ se decide cuando se le da el bus de datos a la GA. Es el transceiver IC115
   always @* begin
     if (en244_n == 1'b1)
       data_to_ga = data_from_ram;
@@ -276,7 +286,12 @@ module ram (
   output reg [7:0] dout,
   // Interface actual con la SRAM
   output tri [20:0] sram_addr,
+`ifdef ZXTRES
+  output wire [7:0] sram_data_to_chip,
+  input wire [7:0] sram_data_from_chip,
+`else
   inout wire [7:0] sram_data,
+`endif
   output tri sram_we_n,
   // boot roms
 	input wire[7:0] romwrite_data,
@@ -290,12 +305,16 @@ module ram (
   ,input wire lowerrom
 `endif
   );
-  
-  // Aquí se decide cuándo la SRAM conmuta a bus de entrada o salida, según lo que se haga sea lectura o escritura
+
+`ifdef ZXTRES
+  assign sram_data_to_chip = !rom_initialised ? romwrite_data : din;
+`else
+  // Aquï¿½ se decide cuï¿½ndo la SRAM conmuta a bus de entrada o salida, segï¿½n lo que se haga sea lectura o escritura
   assign sram_data = 
 //     (sram_we_n == 1'b0)? din : 8'hZZ;
     !rom_initialised ? (romwrite_wr ? romwrite_data : 8'hZZ) :
     (sram_we_n == 1'b0)? din : 8'hZZ;
+`endif
   assign sram_we_n = 
 //     (reset_n == 1'b0)? 1'bz : ras_n | cas_n | we_n;
     (reset_n == 1'b0)? 1'bz :
@@ -317,6 +336,10 @@ module ram (
     if (ras_n == 1'b0)
       addr <= a;
     if ((ras_n == 1'b0 && cas_n == 1'b0 && we_n == 1'b1) || romread)
+`ifdef ZXTRES
+      dout <= sram_data_from_chip;
+`else
       dout <= sram_data;
+`endif
   end
 endmodule  

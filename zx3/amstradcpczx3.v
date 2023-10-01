@@ -88,12 +88,14 @@ module amstradcpczx3 (
   assign vga_g[7:0] = {g[2:0], 5'd0};
   assign vga_b[7:0] = {b[2:0], 5'd0};
 `endif
-  assign sram_addr[19:0] = sram_addr_tmp[19:0];
-  assign sram_oe_n = ~sram_we_n;
-//   assign sram_oe_n = (mreq_n == 1'b0 && rd_n == 1'b0) ? 1'b0 : 1'b1;
+//   assign sram_addr[19:0] = sram_addr_tmp[19:0];
+  wire sram_we_n_in;
+  wire sram_oe_n_in = ~sram_we_n_in;
 
-  assign sram_lb_n = 1'b0;
-  assign sram_ub_n = 1'b1;
+  //   assign sram_oe_n = (mreq_n == 1'b0 && rd_n == 1'b0) ? 1'b0 : 1'b1;
+
+//   assign sram_lb_n = 1'b0;
+//   assign sram_ub_n = 1'b1;
 
   
   // ctrl-module signals
@@ -127,7 +129,8 @@ module amstradcpczx3 (
   // Power on reset y configuración inicial
 //   wire master_reset_n;
 //   wire vga_on, scanlines_on;
-  wire vga_on = 1'b1, scanlines_on = 1'b0;
+//   wire vga_on = 1'b1, scanlines_on = 1'b0;
+wire config_vga_on, config_scanlines_off;
 //   config_retriever (
 //     .clk(ck16),
 //     .sram_addr(sram_addr_tmp),
@@ -163,6 +166,8 @@ module amstradcpczx3 (
   wire[31:0] debug2;
   wire kbd_scandoubler;
   wire pwon_reset;
+  wire[7:0] sram_data_from_chip;
+  wire[7:0] sram_data_to_chip;
   
   cpc la_maquina (
     .ck16(ck16),
@@ -190,8 +195,10 @@ module amstradcpczx3 (
     .joyfire1(joy1fire1),
     .joyfire2(joy1fire2),
     .sram_addr(sram_addr_tmp),
-    .sram_data(sram_data),
-    .sram_we_n(sram_we_n),
+    .sram_data_from_chip(sram_data_from_chip),
+    .sram_data_to_chip(sram_data_to_chip),
+//     .sram_data(sram_data),
+    .sram_we_n(sram_we_n_in),
     
      // disk interface
     .disk_data_in(disk_data_in),
@@ -234,8 +241,8 @@ module amstradcpczx3 (
 	vga_scandoubler #(.CLKVIDEO(16000)) salida_vga (
 		.clkvideo(ck16),
 		.clkvga(ck32),
-    .enable_scandoubling(vga_on ^ vga_toggle),
-    .disable_scaneffect(~scanlines_on),
+    .enable_scandoubling(config_vga_on ^ vga_toggle),
+    .disable_scaneffect(config_scanlines_off),
 		.ri(riosd[7:5]),
 		.gi(giosd[7:5]),
 		.bi(biosd[7:5]),
@@ -529,6 +536,25 @@ module amstradcpczx3 (
     .joy2fire3(),
     .joy2start()
   );
+  
+  config_retriever modo_video_inicial (
+    .clk(ck16),
+    .sram_addr_in(sram_addr_tmp),
+    .sram_we_n_in(sram_we_n_in),
+    .sram_oe_n_in(sram_oe_n_in),
+    .sram_data_from_chip(sram_data_from_chip),
+    .sram_data_to_chip(sram_data_to_chip),
+    .sram_addr_out(sram_addr),
+    .sram_we_n_out(sram_we_n),
+    .sram_oe_n_out(sram_oe_n),
+    .sram_ub_n_out(sram_ub_n),
+    .sram_lb_n_out(sram_lb_n),
+    .sram_data(sram_data),
+    .pwon_reset(pwon_reset),
+    .vga_on(config_vga_on),
+    .scanlines_off(config_scanlines_off)
+  );
+
 `endif
 
 endmodule

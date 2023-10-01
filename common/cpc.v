@@ -48,7 +48,13 @@ module cpc (
   input wire joyfire2,
   // Interface con la SRAM externa
   output tri [20:0] sram_addr,
+`ifdef ZXTRES
+  output wire [7:0] sram_data_to_chip,
+  input wire [7:0] sram_data_from_chip,
+`else
   inout wire [7:0] sram_data,
+`endif
+
   output tri sram_we_n,
 	input wire[7:0] disk_data_in,
 	output wire[7:0] disk_data_out,
@@ -337,7 +343,12 @@ module cpc (
     .memory_oe_n(memory_oe_n),
     .data_to_ga(data_to_ga),
     .sram_addr(sram_addr),
+`ifdef ZXTRES
+    .sram_data_to_chip(sram_data_to_chip),
+    .sram_data_from_chip(sram_data_from_chip),
+`else
     .sram_data(sram_data),
+`endif
     .sram_we_n(sram_we_n),
     // rom loading
 		.host_bootdata(host_bootdata),
