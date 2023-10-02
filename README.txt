@@ -4,6 +4,11 @@ AmstradCPC6128 core
 original AmstradCPC464 core (all the hard work), written by Miguel Angel Rodriguez Jodar
 enhanced by Microjack with 128kb update, and disk emulation reading / writing from SDcard.
 
+Building
+--------
+This project depends on the following repo to be cloned at the same level as thie amstrad repo.
+ - git@github.com:ZXMicroJack/ctrl-module.git - branch amstradcpc.
+
 SDCard preparation
 ------------------
 Create a subdirectory in the root folder of the SD card (FAT32 or FAT16) 'AMSTRAD'.  Into
@@ -38,9 +43,9 @@ This supports:
 
 SRAM Memory Map
 ---------------
-5C000 - AMSDOS
-60000 - BASIC1-1
 64000 - OS6128
+60000 - BASIC1-1
+5C000 - AMSDOS
 1C000 - RAM PAGE 7
 18000 - RAM PAGE 6
 14000 - RAM PAGE 5
@@ -49,6 +54,7 @@ SRAM Memory Map
 08000 - RAM PAGE 2
 04000 - RAM PAGE 1
 00000 - RAM PAGE 0
+
 ROM
 [20:19] = 00
 [18] = 1
@@ -61,7 +67,6 @@ RAM
 [31:0] = addr[13:0]
 
 ROMS loaded at 5c000, ending at 64000
-
 
 Known non-working Games
 -----------------------
@@ -83,5 +88,8 @@ release r1 (candidate)
 - ctrl-module to load disks
 - booting AMSDOS.ROM from SDcard
 
+release r4
+- last known good for ZXUno
+
 release r5
-- Port to ZXTRES
+- first known good for ZXTres
