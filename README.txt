@@ -7,7 +7,7 @@ enhanced by Microjack with 128kb update, and disk emulation reading / writing fr
 SDCard preparation
 ------------------
 Create a subdirectory in the root folder of the SD card (FAT32 or FAT16) 'AMSTRAD'.  Into
-which you should copy the files AMSDOS.ROM and BASIC1-1.ROM.
+which you should copy the files AMSDOS.ROM, BASIC1-1.ROM, and OS6128.ROM.
 
 Keys
 ----
@@ -83,4 +83,5 @@ release r1 (candidate)
 - ctrl-module to load disks
 - booting AMSDOS.ROM from SDcard
 
-
+release r5
+- Port to ZXTRES

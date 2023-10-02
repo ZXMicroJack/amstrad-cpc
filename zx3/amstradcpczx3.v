@@ -25,16 +25,13 @@ module amstradcpczx3 (
   input wire ear,
   output wire audio_left,
   output wire audio_right,
+  // Audio I2S
+  output wire i2s_bclk,
+  output wire i2s_lrclk,
+  output wire i2s_dout,
   // Teclado PS/2
   input wire clkps2,
   input wire dataps2,
-  // Joystick (de momento, solo un jugador)
-//   input wire joyup,
-//   input wire joydown,
-//   input wire joyleft,
-//   input wire joyright,
-//   input wire joyfire1,
-//   input wire joyfire2,
   // Interface con la SRAM de 512KB
   output wire [19:0] sram_addr,
   inout wire [7:0] sram_data,
@@ -47,11 +44,9 @@ module amstradcpczx3 (
   output wire sd_clk,
   output wire sd_mosi,
   input wire sd_miso,
+  // LEDS
   output wire led,
   output wire led2,
-  output wire i2s_bclk,
-  output wire i2s_lrclk,
-  output wire i2s_dout,
   
 `ifdef DPACTIVE
   output wire dp_tx_lane_p,
@@ -88,16 +83,9 @@ module amstradcpczx3 (
   assign vga_g[7:0] = {g[2:0], 5'd0};
   assign vga_b[7:0] = {b[2:0], 5'd0};
 `endif
-//   assign sram_addr[19:0] = sram_addr_tmp[19:0];
   wire sram_we_n_in;
   wire sram_oe_n_in = ~sram_we_n_in;
 
-  //   assign sram_oe_n = (mreq_n == 1'b0 && rd_n == 1'b0) ? 1'b0 : 1'b1;
-
-//   assign sram_lb_n = 1'b0;
-//   assign sram_ub_n = 1'b1;
-
-  
   // ctrl-module signals
   wire host_divert_keyboard;
   wire[7:0] disk_data_in;
@@ -127,37 +115,7 @@ module amstradcpczx3 (
   );
 
   // Power on reset y configuración inicial
-//   wire master_reset_n;
-//   wire vga_on, scanlines_on;
-//   wire vga_on = 1'b1, scanlines_on = 1'b0;
-wire config_vga_on, config_scanlines_off;
-//   config_retriever (
-//     .clk(ck16),
-//     .sram_addr(sram_addr_tmp),
-//     .sram_data(sram_data),
-//     .sram_we_n(sram_we_n),
-//     .pwon_reset_n(master_reset_n),
-//     .vga_on(vga_on),
-//     .scanlines_on(scanlines_on)
-//   );
-
-  
-  
-// assign sram2_addr[18:0] = rom_initialised ? {1'b0, ram_page[4:0], addr[12:0]} : romwrite_addr[18:0];
-// assign sram2_din[7:0] = rom_initialised ? cpu_dout[7:0] : romwrite_data[7:0];
-//   
-// 	bootloader bootloader_inst(
-// 		.clk(sys_clk_i),
-// 		.host_bootdata(host_bootdata),
-// 		.host_bootdata_ack(host_bootdata_ack),
-// 		.host_bootdata_req(host_bootdata_req),
-// 		.host_reset(host_reset),
-// 		.romwrite_data(romwrite_data),
-// 		.romwrite_wr(romwrite_wr),
-// 		.romwrite_addr(romwrite_addr),
-// 		.rom_initialised(rom_initialised)
-// 	);
-
+  wire config_vga_on, config_scanlines_off;
   wire [31:0] host_bootdata;
   wire host_bootdata_ack;
   wire host_bootdata_req;
@@ -192,12 +150,11 @@ wire config_vga_on, config_scanlines_off;
     .joydown(joy1down),
     .joyleft(joy1left),
     .joyright(joy1right),
-    .joyfire1(joy1fire1),
-    .joyfire2(joy1fire2),
+    .joyfire1(joy1fire2),
+    .joyfire2(joy1fire1),
     .sram_addr(sram_addr_tmp),
     .sram_data_from_chip(sram_data_from_chip),
     .sram_data_to_chip(sram_data_to_chip),
-//     .sram_data(sram_data),
     .sram_we_n(sram_we_n_in),
     
      // disk interface
@@ -217,11 +174,6 @@ wire config_vga_on, config_scanlines_off;
 		.host_bootdata_req(host_bootdata_req),
 		.host_rom_initialised(host_rom_initialised),
 		.kbd_mreset(kbd_mreset)
-		//,
-		
-		// debug
-// 		.debug(debug),
-// 		.debug2(debug2)
   );
   assign led2 = host_rom_initialised;
 
@@ -261,19 +213,10 @@ wire config_vga_on, config_scanlines_off;
   wire osd_pixel;
   
   assign led = sd_cs_n ? 1'b0 : 1'b1;
-// TODO
-//   always @(posedge clk390k625)
-//     led <= sd_cs_n ? 1'b0 : 1'b1;
-
   wire[15:0] dswitch;
   wire host_divert_sdcard;
 
-//     always @(posedge clk390k625)
-//     assign led = sd_cs_n ? 1'b0 : 1'b1;
-//   assign led = mono;
   CtrlModule#(.USE_UART(0), .USE_TAPE(0), .ROMSIZE_BITS(13)) MyCtrlModule (
-//     .clk(clk6),
-//     .clk26(clk48),
     .clk(ck16),
     .clk26(ck50),
     .reset_n(1'b1),
@@ -301,11 +244,6 @@ wire config_vga_on, config_scanlines_off;
     .host_divert_keyboard(host_divert_keyboard),
     .host_divert_sdcard(host_divert_sdcard),
 
-    // tape interface
-//      .ear_in(micout),
-//      .ear_out(ear_in_sc),
-//     .clk390k625(clk390k625),
-
      // disk interface
     .disk_data_in(disk_data_out),
     .disk_data_out(disk_data_in),
@@ -321,21 +259,6 @@ wire config_vga_on, config_scanlines_off;
 		.host_bootdata_ack(host_bootdata_ack),
 		.host_bootdata_req(host_bootdata_req),
 		.host_rom_initialised(host_rom_initialised)
-		//,
-    
-	// from/to ctrl-module
-
-//       .tape_data_out(tape_data),
-//       .tape_dclk_out(tape_dclk),
-//       .tape_reset_out(tape_reset),
-// 
-//       .tape_hreq(tape_hreq),
-//       .tape_busy(tape_busy),
-//       .cpu_reset(1'b0)
-		// debug
-// 		.debug(debug),
-// 		.debug2(debug2)
-	
    );
 
    wire[3:0] vga_r_o;
@@ -386,11 +309,6 @@ wire config_vga_on, config_scanlines_off;
      .scanline_ena(1'b0)
    );
 
-  
-//   zxtres_wrapper #(.CLKVIDEO(16)) cosas_del_zxtres (
-//   .clkvideo(ck16),                      // reloj de pixel de la señal de video original (generada por el core)
-
-
 `ifdef DPACTIVE
   zxtres_wrapper #(.CLKVIDEO(16), .HSTART(207), .VSTART(46)) cosas_del_zxtres (
   .clkvideo(ck16),                      // reloj de pixel de la señal de video original (generada por el core)
@@ -402,42 +320,14 @@ wire config_vga_on, config_scanlines_off;
   .video_output_sel(vga_on ^ vga_toggle),          // 0: RGB 15kHz + DP   1: VGA + DP
   .disable_scanlines(~scanlines_on),  // 0: emular scanlines (cuidado con el policía del retro!)  1: sin scanlines
   .monochrome_sel(mono ? 2'd1 : 2'd0),   // 0 : RGB, 1: fósforo verde, 2: fósforo ámbar, 3: escala de grises
-//   .interlace_mode(interlace_mode),
-//   .field(campo_imagen),
-//   .interlaced_image(interlaced_image),
-//   .ad724_modo(color_mode),                // Modo de video para el reloj de color. 0 : PAL, 1: NTSC
-//   .ad724_clken(enable_gencolorclk),       // Habilita el uso del generador interno de CLK de color
-
-//   .disable_scaneffect(~scanlines_on),
-// 		.ri(riosd[7:5]),
-// 		.gi(giosd[7:5]),
-// 		.bi(biosd[7:5]),
-// 		.hsync_ext_n(hsync_pal),
-// 		.vsync_ext_n(vsync_pal),
-//     .csync_ext_n(csync_pal),
-// 		.ro(r),
-// 		.go(g),
-// 		.bo(b),
-// 		.hsync(hsync),
-// 		.vsync(vsync)
 
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//   .ri({ri[2:0],5'd0}),            // RGB de 24 bits aunque  
-//   .gi({gi[2:0],5'd0}),            // después haya que guardar 
-//   .bi({bi[2:0],5'd0}),            // menos bits (dep. de la BRAM usada)
   .ri(riosd[7:0]),
   .gi(giosd[7:0]),
   .bi(biosd[7:0]),
-//   .ri({riosd[7:5],5'd0}),
-//   .gi({giosd[7:5],5'd0}),
-//   .bi({biosd[7:5],5'd0}),
   .hsync_ext_n(hsync_pal),  // Sincronismo horizontal y vertical separados. Los necesito separados para poder, dentro del módulo
   .vsync_ext_n(vsync_pal),  // medir cuándo comienza y termina un scan y un frame, y así centrar la imagen en el framebuffer
   .csync_ext_n(csync_pal),  // entrada de sincronismo compuesto de la señal original
-  ////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//   .ula_mode(ula_mode),     // Señales específicas para el uso de este
-//   .ula_hcont(ula_hcont),   // core de ZX Spectrum. Estas señales son las
-//   .ula_vcont(ula_vcont),   // que sincronizan la ULA con el framescaler
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////    
   .audio_l({audio_out_left[8:0], 7'd0}),
   .audio_r({audio_out_right[8:0], 7'd0}),
@@ -464,16 +354,7 @@ wire config_vga_on, config_scanlines_off;
   .joy1right(joy1right),
   .joy1fire1(joy1fire1),
   .joy1fire2(joy1fire2),
-//   .joy1fire3(joy1fire3),
   .joy1start(),
-//   .joy2up(joy2up),
-//   .joy2down(joy2down),
-//   .joy2left(joy2left),
-//   .joy2right(joy2right),
-//   .joy2fire1(joy2fire1),
-//   .joy2fire2(joy2fire2),
-//   .joy2fire3(),
-//   .joy2start(),    
   ////////////////////////////////////////////////////////////////////////////////////////////////////////////
   .dp_tx_lane_p(dp_tx_lane_p),          // De los dos lanes de la Artix 7, solo uso uno.
   .dp_tx_lane_n(dp_tx_lane_n),          // Cada lane es una señal diferencial. Esta es la parte negativa.
@@ -558,9 +439,6 @@ wire config_vga_on, config_scanlines_off;
 `endif
 
 endmodule
-
-
-
 
 `ifndef DPACTIVE
 module greenscreen(
