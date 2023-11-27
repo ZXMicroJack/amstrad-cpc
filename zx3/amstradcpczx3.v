@@ -61,7 +61,10 @@ module amstradcpczx3 (
 `endif
   input wire joy_data,
   output wire joy_clk,
-  output wire joy_load_n
+  output wire joy_load_n,
+  input wire xjoy_data,
+  output wire xjoy_clk,
+  output wire xjoy_load_n
   );
 
   wire joy1up;
@@ -126,7 +129,10 @@ module amstradcpczx3 (
   wire pwon_reset;
   wire[7:0] sram_data_from_chip;
   wire[7:0] sram_data_to_chip;
-  
+
+  assign xjoy_clk = joy_clk;
+  assign xjoy_load_n = joy_load_n;
+
   cpc la_maquina (
     .ck16(ck16),
     .pown_reset_n(~pwon_reset),
@@ -396,7 +402,7 @@ module amstradcpczx3 (
 
   joydecoder decodificador_joysticks (
     .clk(ck16),
-    .joy_data(joy_data),
+    .joy_data(joy_data & ~xjoy_data),
     .joy_latch_megadrive(1'b1),
     .joy_clk(joy_clk),
     .joy_load_n(joy_load_n),

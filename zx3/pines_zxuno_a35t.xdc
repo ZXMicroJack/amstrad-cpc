@@ -103,6 +103,14 @@ set_property IOSTANDARD LVCMOS33 [get_ports joy_load_n]
 set_property PACKAGE_PIN W2 [get_ports joy_data]
 set_property IOSTANDARD LVCMOS33 [get_ports joy_data]
 
+#USB joypads from MB
+set_property PACKAGE_PIN AB5 [get_ports xjoy_clk]
+set_property IOSTANDARD LVCMOS33 [get_ports xjoy_clk]
+set_property PACKAGE_PIN AA4 [get_ports xjoy_load_n]
+set_property IOSTANDARD LVCMOS33 [get_ports xjoy_load_n]
+set_property PACKAGE_PIN AA6 [get_ports xjoy_data]
+set_property IOSTANDARD LVCMOS33 [get_ports xjoy_data]
+
 #SRAM
 set_property PACKAGE_PIN U18 [get_ports {sram_addr[0]}]
 set_property IOSTANDARD LVCMOS33 [get_ports {sram_addr[0]}]
